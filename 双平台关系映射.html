@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双平台关系映射管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部操作区 - 新增智能映射按钮 -->
+        <div class="header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <h1 id="systemTitleDisplay" class="editable" style="margin:0; font-size:24px; color:#5eead4; font-weight:600; letter-spacing:-0.5px;" ondblclick="startEditTitle('system')">
+                    <span id="systemTitleText"></span>
+                    <span class="edit-icon" onclick="startEditTitle('system')">✎</span>
+                </h1>
+                <div id="systemTitleEdit" class="title-edit" style="display:none;">
+                    <input id="systemTitleInput" class="title-input" placeholder="系统标题（最多30字符）" maxlength="30">
+                    <button class="btn-primary btn-small" onclick="saveTitle('system')">保存</button>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-secondary" onclick="showMappingSettingsModal()">映射设置</button>
+                <button class="btn-primary" onclick="showImportDataModal()">导入数据</button>
+                <button class="btn-secondary" onclick="showSmartMapping()">智能映射</button>
+                <button class="btn-secondary" onclick="showExportOptions(this)">导出映射</button>
+                <button class="btn-danger" onclick="showClearAllConfirm(this)">清空全部</button>
+                <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" aria-label="切换主题" title="切换深色/浅色"></button>
+            </div>
+        </div>
+
+        <!-- 主体内容区 - 新增可视化映射 -->
+        <div class="main-content">
+            <!-- 平台A树 -->
+            <div class="tree-panel">
+                <div class="panel-header">
+                    <span class="panel-title editable" ondblclick="startEditTitle('A')"><span id="platformTitleAText"></span><span class="edit-icon" onclick="startEditTitle('A')">✎</span></span>
+                    <span class="stat-value" id="statsA">0/0</span>
+                </div>
+                <div id="platformTitleAEdit" class="title-edit" style="display:none; margin-bottom:6px;">
+                    <input id="platformTitleAInput" class="title-input" placeholder="平台 A 名称（最多30字符）" maxlength="30">
+                    <button class="btn-primary btn-small" onclick="saveTitle('A')">保存</button>
+                </div>
+                <div class="search-wrap" aria-label="平台A搜索区域">
+                    <input type="text" class="search-box" id="searchA" placeholder="🔍 搜索名称或 ID" list="searchAList" aria-label="搜索平台A名称或ID">
+                    <button id="clearSearchA" class="clear-btn" aria-label="清空搜索" title="清空" onclick="clearSearch('A')">×</button>
+                </div>
+                <datalist id="searchAList"></datalist>
+                <div id="searchInfoA" style="font-size:12px; color:#94a3b8; margin-top:4px;"></div>
+                <div class="tree-view" id="treeA">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div id="emptyA">请导入平台 A 数据</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 映射关系区 - 增强版 -->
+            <div class="mapping-panel" style="position: relative; overflow: visible;">
+                <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span class="panel-title">绑定节点</span>
+                    <button class="btn-small" id="smartOverlayBtn" onclick="openSmartOverlay()" title="基于相似度的智能推荐">智能推荐</button>
+                </div>
+                <div id="smartBindOverlay" class="smart-overlay" style="display:none; position:absolute; right:0; left:0; top:48px; margin:0 auto; width:100%; max-width:100%; border-radius:10px; box-shadow: 0 12px 24px rgba(0,0,0,0.25); opacity:0; transform: translateY(-8px); transition: opacity .18s ease, transform .18s ease; z-index: 5000; flex-direction: column; max-height: calc(100vh - 112px); overflow: hidden;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom: 1px solid rgba(94, 234, 212, 0.15);">
+                        <div id="smartOverlayTitle" style="font-weight:600;">智能推荐</div>
+                        <button onclick="closeSmartOverlay()" aria-label="关闭" title="关闭" id="smartOverlayCloseBtn" style="width:24px; height:24px; line-height:24px; text-align:center; background: transparent; border: none; border-radius: 4px;">×</button>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom: 1px dashed rgba(94, 234, 212, 0.12);">
+                        <div id="smartOverlaySummary" style="font-size:13px; color:#94a3b8;">推荐结果 0项</div>
+                        <button class="btn-small" onclick="toggleSmartOverlaySelectAll()" id="smartOverlaySelectAllBtn">全选</button>
+                    </div>
+                    <div id="smartOverlayAnchor" style="position:absolute; top:-8px; width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-bottom:8px solid rgba(94, 234, 212, 0.2);
+                        transform: translateX(-50%);"></div>
+                    <div id="smartBindOverlayBody" style="padding:8px 10px; max-height:50vh; overflow:auto; flex: 1;"></div>
+                    <div id="smartOverlayFooter" class="smart-overlay-footer" style="width: 100%; display:flex; justify-content:space-between; align-items:center; padding:16px; box-sizing: border-box;">
+                        <div id="smartOverlaySelectedCount" style="font-size:13px;">已选0项</div>
+                        <button class="btn-small btn-primary" onclick="applySmartOverlaySelected()">绑定所选</button>
+                    </div>
+                </div>
+                
+                <!-- 可视化映射区域 -->
+                <div class="visual-mapping" id="visualMapping" style="display: none;">
+                    <svg class="mapping-svg" id="mappingSvg"></svg>
+                </div>
+
+                <div class="mapping-list" id="mappingsList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div>选择右侧节点绑定</div>
+                    </div>
+                </div>
+                <div id="mappingHint"></div>
+            </div>
+
+            <!-- 平台B树 -->
+            <div class="tree-panel">
+                <div class="panel-header">
+                    <span class="panel-title editable" ondblclick="startEditTitle('B')"><span id="platformTitleBText"></span><span class="edit-icon" onclick="startEditTitle('B')">✎</span></span>
+                    <span class="stat-value" id="statsB">0/0</span>
+                </div>
+                <div id="platformTitleBEdit" class="title-edit" style="display:none; margin-bottom:6px;">
+                    <input id="platformTitleBInput" class="title-input" placeholder="平台 B 名称（最多30字符）" maxlength="30">
+                    <button class="btn-primary btn-small" onclick="saveTitle('B')">保存</button>
+                </div>
+                <div class="search-wrap" aria-label="平台B搜索区域">
+                    <input type="text" class="search-box" id="searchB" placeholder="🔍 搜索名称或 ID" list="searchBList" aria-label="搜索平台B名称或ID">
+                    <button id="clearSearchB" class="clear-btn" aria-label="清空搜索" title="清空" onclick="clearSearch('B')">×</button>
+                </div>
+                <datalist id="searchBList"></datalist>
+                <div id="searchInfoB" style="font-size:12px; color:#94a3b8; margin-top:4px;"></div>
+                <div class="tree-view" id="treeB">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div id="emptyB">请导入平台 B 数据</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <div class="footer">
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-label">绑定节点:</span>
+                    <span class="stat-value" id="totalMappings">0 条</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="coverageALabel">平台A覆盖率:</span>
+                    <span class="stat-value" id="coverageA">0%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="coverageBLabel">平台B覆盖率:</span>
+                    <span class="stat-value" id="coverageB">0%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">最近更新:</span>
+                    <span class="stat-value" id="lastUpdate">-</span>
+                </div>
+                <div class="stat-item">
+                    <button class="toolbar-btn" onclick="showUnmapped()" title="查看未映射节点">未映射</button>
+                </div>
+                
+                <div class="stat-item" style="margin-left:auto; display:flex; justify-content:flex-end;">
+                    <button class="toolbar-btn" onclick="openBindingLogsModal()" title="查看绑定记录" style="margin-left:auto;">绑定记录</button>
+                </div>
+            </div>
+        </div>
+
+        
+    </div>
+
+    <div id="mappingSettingsModal" class="modal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h2 class="modal-title">映射设置</h2>
+                <span class="close" onclick="closeMappingSettingsModal()">&times;</span>
+            </div>
+            <div style="display:flex; flex-direction: column; gap:12px;">
+                <div>
+                    <div style="margin-bottom:6px; font-weight:600; color:#5eead4;">映射关系类型</div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <label style="display:flex; align-items:center; gap:6px;" title="每个A节点仅绑定1个B节点，重复绑定覆盖旧关系。适用于严格唯一对应关系。">
+                            <input type="radio" name="mapType" value="ONE_TO_ONE"> <span>1对1映射</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px;" title="每个A节点可绑定多个B节点，B节点不可重复绑定到其他A。适用于A聚合到多个B的场景。">
+                            <input type="radio" name="mapType" value="ONE_TO_MANY"> <span>1对N映射</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px;" title="同一B节点可被多个A节点绑定。可能导致数据混乱，谨慎使用。">
+                            <input type="radio" name="mapType" value="MANY_TO_ONE"> <span>N对1映射</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px;" title="A节点可绑定多个B节点且B节点也可被多个A节点绑定。适用于多源多目标的交叉关系。">
+                            <input type="radio" name="mapType" value="MANY_TO_MANY"> <span>N对N映射</span>
+                        </label>
+                    </div>
+                    <div style="margin-top:6px; font-size:12px; color:#94a3b8;">选择适合业务的数据关系类型，鼠标悬停可查看详细说明。</div>
+                </div>
+                <div>
+                    <div style="margin-bottom:6px; font-weight:600; color:#5eead4;">可映射节点范围</div>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="leafOnlyA" onchange="updateMappableCounts()"> <span>A平台仅允许叶子节点映射（默认）</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="leafOnlyB" onchange="updateMappableCounts()"> <span>B平台仅允许叶子节点映射（默认）</span>
+                    </label>
+                    <div style="font-size:12px; color:#94a3b8; margin-top:4px;">取消勾选后，允许该平台所有节点（包括父节点）进行映射操作</div>
+                    <div style="display:flex; gap:12px; margin-top:8px;">
+                        <div class="mappable-label" style="font-size:12px;">A平台可映射节点：<span id="mappableCountA">-</span> 个</div>
+                        <div class="mappable-label" style="font-size:12px;">B平台可映射节点：<span id="mappableCountB">-</span> 个</div>
+                    </div>
+                </div>
+                
+            </div>
+            <div class="btn-group" style="margin-top:12px;">
+                <button class="btn-primary" onclick="saveMappingSettings()">保存</button>
+                <button class="btn-secondary" onclick="closeMappingSettingsModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入模态框 -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">导入知识体系</h2>
+                <span class="close" onclick="closeImportModal()">&times;</span>
+            </div>
+
+            <div class="format-tabs" id="gridTopBar" style="display:flex; justify-content:flex-start; align-items: center;">
+                <div style="display:flex; gap: 20px; align-items:center;">
+                    <div class="format-tab active" data-format="upload" onclick="switchFormat('upload')">文件上传</div>
+                    <div class="format-tab" data-format="json" onclick="switchFormat('json')">JSON 粘贴</div>
+                    <div class="format-tab" data-format="csv" onclick="switchFormat('csv')">CSV 粘贴</div>
+                </div>
+            </div>
+            <div id="importTargetSelector" style="display:flex; gap:12px; align-items:center; margin:8px 0 10px;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="importTarget" id="importTargetA" value="A" onchange="setImportTarget('A')">
+                    <span>导入平台A数据</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="importTarget" id="importTargetB" value="B" onchange="setImportTarget('B')">
+                    <span>导入平台B数据</span>
+                </label>
+            </div>
+            <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon"></div>
+                <div class="upload-text" id="uploadText">点击或拖拽文件到此处上传</div>
+                <div class="upload-hint" id="uploadHint">支持 JSON 和 CSV 格式，文件大小不超过 10MB</div>
+                <a class="template-link" onclick="downloadCSVTemplate()" style="margin-top:6px; display:block; text-align:center;">下载CSV模板</a>
+                <div id="uploadFilename" style="margin-top:6px; font-size:12px; color:#5eead4; text-align:center;"></div>
+                <div id="clearFileBtn" style="margin-top:6px; display:none; justify-content:center; gap:8px;">
+                    <button class="btn-small btn-secondary" onclick="clearSelectedFile(event)">清除文件</button>
+                </div>
+            </div>
+            <input type="file" id="fileInput" class="file-input" accept=".json,.csv">
+
+            <div id="editorPreviewGrid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items:start; position: relative;">
+            <div id="jsonEditorSection" style="position: relative; padding-top: 32px;">
+                <div class="editor-section-label">原始数据</div>
+                <button class="btn-small btn-edit" id="exampleBtn" onclick="loadExample()" style="position:absolute; right:8px; top:6px;">加载示例</button>
+                <textarea class="json-editor" id="jsonEditor" placeholder="请输入或粘贴JSON格式的知识点数据..."></textarea>
+            </div>
+
+            <div id="csvEditorSection" style="position: relative; padding-top: 32px; display: none;">
+                <div class="editor-section-label">原始数据</div>
+                <button class="btn-small btn-edit" id="csvExampleBtn" onclick="loadCSVExample()" style="position:absolute; right:8px; top:6px;">加载示例</button>
+                <textarea class="json-editor" id="csvEditor" placeholder="请输入或粘贴CSV格式的数据，CSV格式说明：每行一个知识点，格式为 id,name,parentId,level"></textarea>
+            </div>
+
+            <div id="rightPreviewWrap" style="position: relative; padding-top: 32px;">
+                <div class="editor-section-label">数据预览</div>
+                <div id="previewCount" class="count-badge"></div>
+                <div id="previewSection" class="preview-section" style="margin-top: 0;">
+                    <div id="previewContent" style="font-size: 13px; font-family: monospace;"></div>
+                </div>
+            </div>
+            </div>
+
+            <div id="validationMessage"></div>
+
+            <div class="btn-group">
+                <button class="btn-primary" onclick="confirmImport()">确认导入</button>
+                <button class="btn-secondary" onclick="closeImportModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 智能映射模态框 -->
+    <div id="smartMappingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">智能批量映射</h2>
+                <span class="close" onclick="closeSmartMappingModal()">&times;</span>
+            </div>
+            <div id="smartMappingStats" style="font-size:12px; color:#94a3b8; margin-bottom:8px;"></div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px;">相似度阈值（%）：</label>
+                <div style="position: relative; width: 100%;">
+                    <input type="range" id="similarityThreshold" min="50" max="100" value="85" 
+                           style="width: 100%; margin-bottom: 20px;" oninput="updateThresholdDisplay(this.value)">
+                    <div id="thresholdDisplay" style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 14px; color: #5eead4; margin-top: -15px;">
+                        <span id="thresholdValue">85</span>%
+                    </div>
+                </div>
+            </div>
+
+
+            <div id="smartMappingResults" class="preview-section" style="max-height: 400px;">
+                <div class="empty-state">
+                    <div class="empty-state-icon"></div>
+                    <div>点击"开始分析"查找相似知识点</div>
+                </div>
+            </div>
+            
+            <div id="selectAllControls" style="margin-bottom: 15px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="color: #5eead4; font-size: 14px;">
+                        找到 <span id="matchCount">0</span> 个匹配项（相似度 ≥ <span id="currentThreshold">85</span>%）
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
+                        <span id="selectAllText">全选</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-primary" onclick="startSmartMapping()">开始分析</button>
+                <button class="btn-secondary" onclick="applySmartMappings()">应用选中映射</button>
+                <button class="btn-secondary" onclick="closeSmartMappingModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 映射详情模态框 -->
+    <div id="mappingDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title">映射详情</h2>
+                <span class="close" onclick="closeMappingDetailModal()">&times;</span>
+            </div>
+            <div id="mappingDetailContent"></div>
+        </div>
+    </div>
+
+    <!-- 映射编辑模态框 -->
+    <div id="mappingEditModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">编辑映射</h2>
+                <span class="close" onclick="closeMappingEditModal()">&times;</span>
+            </div>
+            <div id="mappingEditForm" style="display:flex; flex-direction: column; gap:8px;"></div>
+            <div class="btn-group">
+                <button class="btn-primary" onclick="applyMappingEdit()">保存</button>
+                <button class="btn-secondary" onclick="closeMappingEditModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <!-- 绑定记录模态框 -->
+    <div id="bindingLogsModal" class="modal" onclick="if(event.target===this)closeBindingLogsModal()">
+        <div class="modal-content" style="width:20vw; max-height:25vh; min-width: clamp(300px, 20vw, 480px); overflow:auto;" tabindex="-1">
+            <div class="modal-header">
+                <h2 class="modal-title">绑定记录</h2>
+                <span class="close" onclick="closeBindingLogsModal()">&times;</span>
+            </div>
+            <div id="bindingLogsBody" style="min-height: 120px;"></div>
+            <div id="bindingLogsPagination" style="display:flex; justify-content: flex-end; gap:8px; padding-top:8px;"></div>
+        </div>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>

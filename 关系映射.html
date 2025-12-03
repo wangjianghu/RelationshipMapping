@@ -1,0 +1,3750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双平台关系映射管理系统</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            height: 100vh;
+            padding: 15px;
+            gap: 15px;
+        }
+        .header {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            box-shadow: 0 8px 32px rgba(2, 8, 20, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #5eead4;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px 1fr;
+            gap: 15px;
+            overflow: hidden;
+        }
+        .tree-panel, .mapping-panel {
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            box-shadow: 0 8px 32px rgba(2, 8, 20, 0.3);
+            padding: 15px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s ease;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
+        }
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #5eead4;
+        }
+        .search-box {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(94, 234, 212, 0.2);
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+            color: #e2e8f0;
+        }
+        .search-wrap { position: relative; }
+        .clear-btn { position: absolute; right: 8px; top: 6px; width: 24px; height: 24px; border-radius: 12px; border: 1px solid rgba(94,234,212,0.2); background: rgba(15,23,42,0.6); color: #e2e8f0; cursor: pointer; display: none; align-items: center; justify-content: center; line-height: 1; transition: opacity .18s ease, transform .18s ease; }
+        .clear-btn.show { display: flex; opacity: 1; }
+        .clear-btn:active { transform: scale(0.96); }
+        .search-highlight { color: #ef4444; font-weight: 600; }
+        .search-box:focus {
+            outline: none;
+            border-color: #5eead4;
+            box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
+        }
+        .tree-view {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .tree-node {
+            margin: 4px 0;
+        }
+        .node-content {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .node-content:hover {
+            background: rgba(148, 163, 184, 0.1);
+        }
+        .node-content.selected-a {
+            background: rgba(94, 234, 212, 0.15);
+            border-left: 3px solid #5eead4;
+        }
+        .node-content.selected-b {
+            background: rgba(139, 92, 246, 0.15);
+            border-left: 3px solid #8b5cf6;
+        }
+        .node-content.mapped {
+            background: rgba(139, 92, 246, 0.1);
+            border-left: 3px solid #8b5cf6;
+            position: relative;
+        }
+        
+        .toggle-icon {
+            font-size: 10px;
+            margin-right: 8px;
+            color: #5eead4;
+            transition: transform 0.2s;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .toggle-icon.expanded {
+            transform: rotate(90deg);
+        }
+        .node-icon {
+            margin-right: 6px;
+            font-size: 14px;
+        }
+        .node-name {
+            flex: 1;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        .node-content:hover .node-name {
+            color: #5eead4;
+        }
+        .children {
+            margin-left: 24px;
+        }
+        .binding-count {
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            color: #8b5cf6;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .bound-targets {
+            padding: 6px 10px;
+            margin-left: 28px;
+            color: #8b5cf6;
+            font-size: 12px;
+        }
+        .target-item {
+            padding: 6px 10px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            border-radius: 6px;
+            margin: 4px 0;
+            background: rgba(15, 23, 42, 0.4);
+            color: #e2e8f0;
+            font-size: 14px;
+            line-height: 20px;
+        }
+        .map-btn {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-left: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .map-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .mapping-hint {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(94, 234, 212, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: center;
+            color: #5eead4;
+            backdrop-filter: blur(5px);
+        }
+        .mapping-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        .btn-secondary {
+            background: #475569;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: #334155;
+            transform: translateY(-1px);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        .mapping-list {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .mapping-item {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        .mapping-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            border-color: rgba(94, 234, 212, 0.3);
+        }
+        .mapping-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .mapping-title {
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        .mapping-actions-small {
+            display: flex;
+            gap: 5px;
+        }
+        .btn-small {
+            padding: 2px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-edit {
+            background: #0ea5e9;
+            color: white;
+        }
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-small:hover {
+            transform: translateY(-1px);
+        }
+        .target-item .btn-small { margin-left: 10px; min-height: 20px; }
+        .footer {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(94, 234, 212, 0.1);
+            box-shadow: 0 8px 32px rgba(2, 8, 20, 0.3);
+            padding: 10px 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+        }
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .stat-label {
+            color: #94a3b8;
+        }
+        .stat-value {
+            font-weight: 600;
+            color: #5eead4;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            margin: 5% auto;
+            padding: 25px;
+            border: 1px solid rgba(94, 234, 212, 0.2);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(94, 234, 212, 0.1);
+        }
+        .modal-title {
+            margin: 0;
+            color: #5eead4;
+            font-size: 20px;
+        }
+        .close {
+            color: #94a3b8;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+            line-height: 1;
+        }
+        .close:hover {
+            color: #5eead4;
+        }
+        .file-upload-area {
+            border: 2px dashed rgba(94, 234, 212, 0.3);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+            background: rgba(15, 23, 42, 0.4);
+        }
+        .file-upload-area:hover {
+            border-color: #5eead4;
+            background: rgba(94, 234, 212, 0.05);
+        }
+        .file-upload-area.dragover {
+            border-color: #8b5cf6;
+            background: rgba(139, 92, 246, 0.1);
+        }
+        #editorPreviewGrid { grid-template-columns: 1fr 1fr; }
+        #jsonEditorSection, #csvEditorSection, #rightPreviewWrap { min-width: 0; }
+        #jsonEditorSection { grid-column: 1; }
+        #csvEditorSection { grid-column: 1; }
+        #rightPreviewWrap { grid-column: 2; }
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #5eead4;
+        }
+        .upload-text {
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: #e2e8f0;
+        }
+        .upload-hint {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .file-input {
+            display: none;
+        }
+        .format-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .format-tab {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #94a3b8;
+            position: relative;
+        }
+        .format-tab.active {
+            color: #5eead4;
+        }
+        .format-tab.active::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -2px;
+            height: 2px;
+            background: #0ea5e9;
+        }
+        .format-tab:hover {
+            border-color: #5eead4;
+            color: #e2e8f0;
+        }
+        .json-editor {
+            width: 100%;
+            min-height: 300px;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(94, 234, 212, 0.2);
+            border-radius: 8px;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            resize: vertical;
+            color: #e2e8f0;
+            transition: all 0.2s;
+        }
+        .editor-section-label {
+            position: absolute;
+            left: 8px;
+            top: 6px;
+            font-size: 12px;
+            color: #94a3b8;
+            pointer-events: none;
+        }
+        .editor-section-label.outside { top: -18px; }
+        .count-badge {
+            position: absolute;
+            right: 0;
+            top: 6px;
+            font-size: 13px;
+            color: #5eead4;
+            display: none;
+        }
+        .json-editor.readonly { background: rgba(15, 23, 42, 0.35); cursor: not-allowed; }
+        .json-editor:focus {
+            outline: none;
+            border-color: #5eead4;
+            box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.1);
+        }
+        .preview-section {
+            max-height: 300px;
+            min-height: 300px;
+            overflow-y: auto;
+            border: 1px solid rgba(94, 234, 212, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 15px;
+            background: rgba(15, 23, 42, 0.5);
+            position: relative;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            position: sticky;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            padding-top: 10px;
+            border-top: 1px solid rgba(94, 234, 212, 0.1);
+        }
+        .btn-group button {
+            flex: 1;
+        }
+        .template-link {
+            color: #5eead4;
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .template-link:hover {
+            text-decoration: underline;
+        }
+        .validation-message {
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .validation-success {
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            color: #34d399;
+        }
+        .validation-error {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(94, 234, 212, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(94, 234, 212, 0.5);
+        }
+
+        /* 新增样式 */
+        .visual-mapping {
+            position: relative;
+            height: 200px;
+            margin: 10px 0;
+            background: rgba(15, 23, 42, 0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .mapping-svg {
+            width: 100%;
+            height: 100%;
+        }
+        .mapping-line {
+            stroke: #8b5cf6;
+            stroke-width: 2;
+            fill: none;
+            opacity: 0.8;
+        }
+        .mapping-line:hover {
+            stroke: #5eead4;
+            stroke-width: 3;
+            opacity: 1;
+        }
+        .floating-toolbar {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(5px);
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            gap: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+        .toolbar-btn {
+            background: rgba(94, 234, 212, 0.1);
+            border: 1px solid rgba(94, 234, 212, 0.3);
+            color: #5eead4;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .toolbar-btn:hover {
+            background: rgba(94, 234, 212, 0.2);
+            transform: translateY(-1px);
+        }
+        .toolbar-btn.active {
+            background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+            color: white;
+            border-color: transparent;
+        }
+        /* 绑定记录弹窗（锚定按钮上方，无蒙层） */
+        #bindingLogsModal { background: transparent !important; backdrop-filter: none !important; pointer-events: none; }
+        #bindingLogsModal .modal-content {
+            position: fixed;
+            bottom: 60px; /* 初始值，打开时会根据按钮位置矫正 */
+            right: 20px;  /* 初始值，打开时会根据按钮位置矫正 */
+            width: min(20vw, 420px);
+            max-height: 25vh;
+            padding: 10px;
+            border: 1px solid #eaeaea;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+            background: rgba(15, 23, 42, 0.98);
+            backdrop-filter: none;
+            animation: slideUp .2s ease;
+            pointer-events: auto;
+        }
+        #bindingLogsModal .modal-title { font-size: 12px; }
+        #bindingLogsModal .close { font-size: 14px; }
+        #bindingLogsBody { overflow-y: auto; font-size: 12px; }
+        #bindingLogsBody::-webkit-scrollbar { width: 2px; }
+        #bindingLogsBody::-webkit-scrollbar-thumb { background: rgba(94, 234, 212, 0.4); border-radius: 2px; }
+        @keyframes slideUp {
+            from { transform: translateY(14px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .node-id { margin-left: 6px; color: #94a3b8; font-size: 12px; }
+        .bindings-popover {
+            position: fixed;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(94, 234, 212, 0.3);
+            border-radius: 8px;
+            padding: 8px;
+            max-height: 140px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            z-index: 5000;
+            min-width: 180px;
+        }
+        .bindings-popover::-webkit-scrollbar { width: 2px; }
+        .bindings-popover::-webkit-scrollbar-thumb { background: rgba(94, 234, 212, 0.4); border-radius: 2px; }
+        .btn-small { white-space: nowrap; }
+        .editable .edit-icon { display: none; }
+        .editable:hover .edit-icon { display: inline-flex; }
+        .edit-icon {
+            margin-left: 8px;
+            width: 18px;
+            height: 18px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(94, 234, 212, 0.3);
+            border-radius: 4px;
+            color: #5eead4;
+            cursor: pointer;
+            font-size: 12px;
+            background: rgba(94, 234, 212, 0.1);
+        }
+        .title-edit { display: flex; gap: 6px; align-items: center; }
+        .title-input {
+            padding: 6px 10px;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid rgba(94, 234, 212, 0.2);
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+        .icon-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid rgba(94,234,212,0.3); background: rgba(15,23,42,0.4); color: #5eead4; cursor: pointer; transition: all .2s; box-shadow: 0 2px 4px rgba(0,0,0,.1); }
+        .icon-btn:hover { background: rgba(94,234,212,0.15); transform: translateY(-1px); }
+        .icon-btn:active { transform: scale(0.96); }
+        .icon-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.08); }
+        .icon-btn svg { width: 20px; height: 20px; }
+    </style>
+    
+    <!-- Toast 提示样式 -->
+    <style>
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2B2B2B;
+            color: #FFFFFF;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 400;
+            min-width: 280px;
+            animation: slideDown 0.3s ease-out;
+        }
+        
+        .toast.success::before {
+            content: '✓';
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: #22C55E;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .toast.error::before {
+            content: '✗';
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: #EF4444;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+        
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+        }
+        
+        .toast.fade-out {
+            animation: fadeOut 0.3s ease-out forwards;
+        }
+    </style>
+    <!-- 主题：浅色覆盖样式 -->
+    <style>
+        html[data-theme='light'] body { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); color: #0f172a; }
+        html[data-theme='light'] .header { background: rgba(255,255,255,0.9); border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
+        html[data-theme='light'] .header h1 { color: #0ea5e9; }
+        html[data-theme='light'] .tree-panel, 
+        html[data-theme='light'] .mapping-panel { background: rgba(255,255,255,0.95); border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(15,23,42,0.06); }
+        html[data-theme='light'] .panel-title { color: #0ea5e9; }
+        html[data-theme='light'] .panel-header { border-bottom-color: #e2e8f0; }
+        html[data-theme='light'] .search-box { background: rgba(255,255,255,0.95); border: 1px solid #cbd5e1; color: #0f172a; }
+        html[data-theme='light'] .search-box:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+        html[data-theme='light'] .clear-btn { background: rgba(255,255,255,0.8); color: #334155; border-color: #cbd5e1; }
+        html[data-theme='light'] .node-content:hover { background: rgba(148,163,184,0.15); }
+        html[data-theme='light'] .node-content.selected-a { background: rgba(14,165,233,0.12); border-left-color: #0ea5e9; }
+        html[data-theme='light'] .node-content.selected-b { background: rgba(124,58,237,0.12); border-left-color: #7c3aed; }
+        html[data-theme='light'] .binding-count { background: rgba(124,58,237,0.12); border-color: rgba(124,58,237,0.35); color: #7c3aed; }
+        html[data-theme='light'] .target-item { background: rgba(255,255,255,0.9); border-color: #e2e8f0; color: #0f172a; }
+        html[data-theme='light'] .mapping-hint { background: #ffffff; border-color: rgba(14,165,233,0.35); color: #0ea5e9; }
+        html[data-theme='light'] .btn-secondary { background: #e2e8f0; color: #0f172a; }
+        html[data-theme='light'] .btn-secondary:hover { background: #cbd5e1; }
+        html[data-theme='light'] .mapping-item { background: rgba(255,255,255,0.95); border-color: #e2e8f0; }
+        html[data-theme='light'] .mapping-item:hover { box-shadow: 0 4px 12px rgba(15,23,42,0.08); border-color: #cbd5e1; }
+        html[data-theme='light'] .footer { background: rgba(255,255,255,0.95); border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(15,23,42,0.06); }
+        html[data-theme='light'] .stat-label { color: #64748b; }
+        html[data-theme='light'] .stat-value { color: #0ea5e9; }
+        html[data-theme='light'] .modal { background-color: rgba(0,0,0,0.35); }
+        html[data-theme='light'] .modal-content { background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 25px 50px rgba(15,23,42,0.12); }
+        html[data-theme='light'] .close { color: #64748b; }
+        html[data-theme='light'] .close:hover { color: #0ea5e9; }
+        html[data-theme='light'] .file-upload-area { background: #ffffff; border-color: rgba(14,165,233,0.35); }
+        html[data-theme='light'] .file-upload-area:hover { background: rgba(14,165,233,0.08); border-color: #0ea5e9; }
+        html[data-theme='light'] .format-tab { color: #64748b; }
+        html[data-theme='light'] .format-tab.active { color: #0ea5e9; }
+        html[data-theme='light'] .format-tab.active::after { background: #0ea5e9; }
+        html[data-theme='light'] .json-editor { background: #ffffff; border-color: #e2e8f0; color: #0f172a; }
+        html[data-theme='light'] .json-editor.readonly { background: rgba(241,245,249,0.6); }
+        html[data-theme='light'] .json-editor:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+        html[data-theme='light'] ::-webkit-scrollbar-track { background: #f1f5f9; }
+        html[data-theme='light'] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        html[data-theme='light'] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        html[data-theme='light'] .visual-mapping { background: rgba(241,245,249,0.7); }
+        html[data-theme='light'] .mapping-line { stroke: #7c3aed; }
+        html[data-theme='light'] .floating-toolbar { background: rgba(255,255,255,0.98); box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+        html[data-theme='light'] .toolbar-btn { background: rgba(14,165,233,0.08); border-color: rgba(14,165,233,0.35); color: #0ea5e9; }
+        html[data-theme='light'] .toolbar-btn.active { background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%); color: #ffffff; }
+        html[data-theme='light'] .title-input { background: #ffffff; border-color: #e2e8f0; color: #0f172a; }
+        html[data-theme='light'] #bindingLogsModal .modal-content { background: #ffffff; border-color: #e2e8f0; box-shadow: 0 8px 24px rgba(15,23,42,0.12); }
+        html[data-theme='light'] #bindingLogsBody::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        html[data-theme='light'] .toast { background: #ffffff; color: #0f172a; border-color: #e2e8f0; box-shadow: 0 4px 12px rgba(15,23,42,0.12); }
+        html[data-theme='light'] .icon-btn { background: #ffffff; border-color: #cbd5e1; color: #0ea5e9; box-shadow: 0 2px 4px rgba(15,23,42,0.06); }
+        html[data-theme='light'] .icon-btn:hover { background: rgba(14,165,233,0.08); }
+        html[data-theme='light'] .icon-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.6); background: rgba(239,68,68,0.08); }
+        html[data-theme='light'] .bindings-popover { background: #ffffff; border: 1px solid #e2e8f0; color: #0f172a; box-shadow: 0 8px 24px rgba(15,23,42,0.12); }
+        html[data-theme='light'] .bindings-popover::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        html[data-theme='light'] .modal-title { color: #0ea5e9; }
+        html[data-theme='light'] .btn-group { background: #ffffff; border-top: 1px solid #e2e8f0; }
+        html[data-theme='light'] .preview-section { background: #f1f5f9; border-color: #e2e8f0; }
+        html[data-theme='light'] #thresholdDisplay { color: #0ea5e9; }
+        html[data-theme='light'] input[type="radio"],
+        html[data-theme='light'] input[type="checkbox"] { accent-color: #0ea5e9; }
+        html[data-theme='light'] input[type="range"]::-webkit-slider-runnable-track { background: #e2e8f0; height: 6px; border-radius: 4px; }
+        html[data-theme='light'] input[type="range"]::-webkit-slider-thumb { background: #0ea5e9; border: 2px solid #ffffff; width: 18px; height: 18px; border-radius: 50%; margin-top: -6px; }
+        html[data-theme='light'] #mappingSettingsModal .mappable-label { color: #334155 !important; }
+        html[data-theme='light'] #bindingLogsBody .history-item { background: #ffffff; border: 1px solid #e2e8f0; }
+        html[data-theme='light'] #bindingLogsBody .history-item:hover { background: #f1f5f9; }
+        #exportOptions .btn-small { transition: none !important; }
+        html[data-theme='light'] .upload-text { color: #334155; }
+        html[data-theme='light'] .upload-hint { color: #64748b; }
+        html[data-theme='light'] .mapping-title { color: #0f172a; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部操作区 - 新增智能映射按钮 -->
+        <div class="header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <h1 id="systemTitleDisplay" class="editable" style="margin:0; font-size:24px; color:#5eead4; font-weight:600; letter-spacing:-0.5px;" ondblclick="startEditTitle('system')">
+                    <span id="systemTitleText"></span>
+                    <span class="edit-icon" onclick="startEditTitle('system')">✎</span>
+                </h1>
+                <div id="systemTitleEdit" class="title-edit" style="display:none;">
+                    <input id="systemTitleInput" class="title-input" placeholder="系统标题（最多30字符）" maxlength="30">
+                    <button class="btn-primary btn-small" onclick="saveTitle('system')">保存</button>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-secondary" onclick="showMappingSettingsModal()">映射设置</button>
+                <button class="btn-primary" onclick="showImportDataModal()">导入数据</button>
+                <button class="btn-secondary" onclick="showSmartMapping()">智能映射</button>
+                <button class="btn-secondary" onclick="showExportOptions(this)">导出映射</button>
+                <button class="btn-danger" onclick="showClearAllConfirm(this)">清空全部</button>
+                <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" aria-label="切换主题" title="切换深色/浅色"></button>
+            </div>
+        </div>
+
+        <!-- 主体内容区 - 新增可视化映射 -->
+        <div class="main-content">
+            <!-- 平台A树 -->
+            <div class="tree-panel">
+                <div class="panel-header">
+                    <span class="panel-title editable" ondblclick="startEditTitle('A')"><span id="platformTitleAText"></span><span class="edit-icon" onclick="startEditTitle('A')">✎</span></span>
+                    <span class="stat-value" id="statsA">0/0</span>
+                </div>
+                <div id="platformTitleAEdit" class="title-edit" style="display:none; margin-bottom:6px;">
+                    <input id="platformTitleAInput" class="title-input" placeholder="平台 A 名称（最多30字符）" maxlength="30">
+                    <button class="btn-primary btn-small" onclick="saveTitle('A')">保存</button>
+                </div>
+                <div class="search-wrap" aria-label="平台A搜索区域">
+                    <input type="text" class="search-box" id="searchA" placeholder="🔍 搜索名称或 ID" list="searchAList" aria-label="搜索平台A名称或ID">
+                    <button id="clearSearchA" class="clear-btn" aria-label="清空搜索" title="清空" onclick="clearSearch('A')">×</button>
+                </div>
+                <datalist id="searchAList"></datalist>
+                <div id="searchInfoA" style="font-size:12px; color:#94a3b8; margin-top:4px;"></div>
+                <div class="tree-view" id="treeA">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div id="emptyA">请导入平台 A 数据</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 映射关系区 - 增强版 -->
+            <div class="mapping-panel">
+                <div class="panel-header">
+                    <span class="panel-title">绑定节点</span>
+                </div>
+                
+                <!-- 可视化映射区域 -->
+                <div class="visual-mapping" id="visualMapping" style="display: none;">
+                    <svg class="mapping-svg" id="mappingSvg"></svg>
+                </div>
+
+                <div class="mapping-list" id="mappingsList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div>选择右侧节点绑定</div>
+                    </div>
+                </div>
+                <div id="mappingHint"></div>
+            </div>
+
+            <!-- 平台B树 -->
+            <div class="tree-panel">
+                <div class="panel-header">
+                    <span class="panel-title editable" ondblclick="startEditTitle('B')"><span id="platformTitleBText"></span><span class="edit-icon" onclick="startEditTitle('B')">✎</span></span>
+                    <span class="stat-value" id="statsB">0/0</span>
+                </div>
+                <div id="platformTitleBEdit" class="title-edit" style="display:none; margin-bottom:6px;">
+                    <input id="platformTitleBInput" class="title-input" placeholder="平台 B 名称（最多30字符）" maxlength="30">
+                    <button class="btn-primary btn-small" onclick="saveTitle('B')">保存</button>
+                </div>
+                <div class="search-wrap" aria-label="平台B搜索区域">
+                    <input type="text" class="search-box" id="searchB" placeholder="🔍 搜索名称或 ID" list="searchBList" aria-label="搜索平台B名称或ID">
+                    <button id="clearSearchB" class="clear-btn" aria-label="清空搜索" title="清空" onclick="clearSearch('B')">×</button>
+                </div>
+                <datalist id="searchBList"></datalist>
+                <div id="searchInfoB" style="font-size:12px; color:#94a3b8; margin-top:4px;"></div>
+                <div class="tree-view" id="treeB">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div id="emptyB">请导入平台 B 数据</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <div class="footer">
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-label">绑定节点:</span>
+                    <span class="stat-value" id="totalMappings">0 条</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="coverageALabel">平台A覆盖率:</span>
+                    <span class="stat-value" id="coverageA">0%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label" id="coverageBLabel">平台B覆盖率:</span>
+                    <span class="stat-value" id="coverageB">0%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">最近更新:</span>
+                    <span class="stat-value" id="lastUpdate">-</span>
+                </div>
+                <div class="stat-item">
+                    <button class="toolbar-btn" onclick="showUnmapped()" title="查看未映射节点">未映射</button>
+                </div>
+                
+                <div class="stat-item" style="margin-left:auto; display:flex; justify-content:flex-end;">
+                    <button class="toolbar-btn" onclick="openBindingLogsModal()" title="查看绑定记录" style="margin-left:auto;">绑定记录</button>
+                </div>
+            </div>
+        </div>
+
+        
+    </div>
+
+    <div id="mappingSettingsModal" class="modal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h2 class="modal-title">映射设置</h2>
+                <span class="close" onclick="closeMappingSettingsModal()">&times;</span>
+            </div>
+            <div style="display:flex; flex-direction: column; gap:12px;">
+                <div>
+                    <div style="margin-bottom:6px; font-weight:600; color:#5eead4;">映射关系类型</div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        <label style="display:flex; align-items:center; gap:6px;" title="每个A节点仅绑定1个B节点，重复绑定覆盖旧关系。适用于严格唯一对应关系。">
+                            <input type="radio" name="mapType" value="ONE_TO_ONE"> <span>1对1映射</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px;" title="每个A节点可绑定多个B节点，B节点不可重复绑定到其他A。适用于A聚合到多个B的场景。">
+                            <input type="radio" name="mapType" value="ONE_TO_MANY"> <span>1对N映射</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px;" title="同一B节点可被多个A节点绑定。可能导致数据混乱，谨慎使用。">
+                            <input type="radio" name="mapType" value="MANY_TO_ONE"> <span>N对1映射</span>
+                        </label>
+                    </div>
+                    <div style="margin-top:6px; font-size:12px; color:#94a3b8;">选择适合业务的数据关系类型，鼠标悬停可查看详细说明。</div>
+                </div>
+                <div>
+                    <div style="margin-bottom:6px; font-weight:600; color:#5eead4;">可映射节点范围</div>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="leafOnlyA" onchange="updateMappableCounts()"> <span>A平台仅允许叶子节点映射（默认）</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="leafOnlyB" onchange="updateMappableCounts()"> <span>B平台仅允许叶子节点映射（默认）</span>
+                    </label>
+                    <div style="font-size:12px; color:#94a3b8; margin-top:4px;">取消勾选后，允许该平台所有节点（包括父节点）进行映射操作</div>
+                    <div style="display:flex; gap:12px; margin-top:8px;">
+                        <div class="mappable-label" style="font-size:12px;">A平台可映射节点：<span id="mappableCountA">-</span> 个</div>
+                        <div class="mappable-label" style="font-size:12px;">B平台可映射节点：<span id="mappableCountB">-</span> 个</div>
+                    </div>
+                </div>
+            </div>
+            <div class="btn-group" style="margin-top:12px;">
+                <button class="btn-primary" onclick="saveMappingSettings()">保存</button>
+                <button class="btn-secondary" onclick="closeMappingSettingsModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入模态框 -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">导入知识体系</h2>
+                <span class="close" onclick="closeImportModal()">&times;</span>
+            </div>
+
+            <div class="format-tabs" id="gridTopBar" style="display:flex; justify-content:flex-start; align-items: center;">
+                <div style="display:flex; gap: 20px; align-items:center;">
+                    <div class="format-tab active" data-format="upload" onclick="switchFormat('upload')">文件上传</div>
+                    <div class="format-tab" data-format="json" onclick="switchFormat('json')">JSON 粘贴</div>
+                    <div class="format-tab" data-format="csv" onclick="switchFormat('csv')">CSV 粘贴</div>
+                </div>
+            </div>
+            <div id="importTargetSelector" style="display:flex; gap:12px; align-items:center; margin:8px 0 10px;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="importTarget" id="importTargetA" value="A" onchange="setImportTarget('A')">
+                    <span>导入平台A数据</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="importTarget" id="importTargetB" value="B" onchange="setImportTarget('B')">
+                    <span>导入平台B数据</span>
+                </label>
+            </div>
+            <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('fileInput').click()">
+                <div class="upload-icon"></div>
+                <div class="upload-text" id="uploadText">点击或拖拽文件到此处上传</div>
+                <div class="upload-hint" id="uploadHint">支持 JSON 和 CSV 格式，文件大小不超过 10MB</div>
+                <a class="template-link" onclick="downloadCSVTemplate()" style="margin-top:6px; display:block; text-align:center;">下载CSV模板</a>
+                <div id="uploadFilename" style="margin-top:6px; font-size:12px; color:#5eead4; text-align:center;"></div>
+                <div id="clearFileBtn" style="margin-top:6px; display:none; justify-content:center; gap:8px;">
+                    <button class="btn-small btn-secondary" onclick="clearSelectedFile(event)">清除文件</button>
+                </div>
+            </div>
+            <input type="file" id="fileInput" class="file-input" accept=".json,.csv">
+
+            <div id="editorPreviewGrid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items:start; position: relative;">
+            <div id="jsonEditorSection" style="position: relative; padding-top: 32px;">
+                <div class="editor-section-label">原始数据</div>
+                <button class="btn-small btn-edit" id="exampleBtn" onclick="loadExample()" style="position:absolute; right:8px; top:6px;">加载示例</button>
+                <textarea class="json-editor" id="jsonEditor" placeholder="请输入或粘贴JSON格式的知识点数据..."></textarea>
+            </div>
+
+            <div id="csvEditorSection" style="position: relative; padding-top: 32px; display: none;">
+                <div class="editor-section-label">原始数据</div>
+                <button class="btn-small btn-edit" id="csvExampleBtn" onclick="loadCSVExample()" style="position:absolute; right:8px; top:6px;">加载示例</button>
+                <textarea class="json-editor" id="csvEditor" placeholder="请输入或粘贴CSV格式的数据，CSV格式说明：每行一个知识点，格式为 id,name,parentId,level"></textarea>
+            </div>
+
+            <div id="rightPreviewWrap" style="position: relative; padding-top: 32px;">
+                <div class="editor-section-label">数据预览</div>
+                <div id="previewCount" class="count-badge"></div>
+                <div id="previewSection" class="preview-section" style="margin-top: 0;">
+                    <div id="previewContent" style="font-size: 13px; font-family: monospace;"></div>
+                </div>
+            </div>
+            </div>
+
+            <div id="validationMessage"></div>
+
+            <div class="btn-group">
+                <button class="btn-primary" onclick="confirmImport()">确认导入</button>
+                <button class="btn-secondary" onclick="closeImportModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 智能映射模态框 -->
+    <div id="smartMappingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">智能批量映射</h2>
+                <span class="close" onclick="closeSmartMappingModal()">&times;</span>
+            </div>
+            <div id="smartMappingStats" style="font-size:12px; color:#94a3b8; margin-bottom:8px;"></div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px;">相似度阈值（%）：</label>
+                <div style="position: relative; width: 100%;">
+                    <input type="range" id="similarityThreshold" min="50" max="100" value="85" 
+                           style="width: 100%; margin-bottom: 20px;" oninput="updateThresholdDisplay(this.value)">
+                    <div id="thresholdDisplay" style="position: absolute; left: 50%; transform: translateX(-50%); font-size: 14px; color: #5eead4; margin-top: -15px;">
+                        <span id="thresholdValue">85</span>%
+                    </div>
+                </div>
+            </div>
+
+
+            <div id="smartMappingResults" class="preview-section" style="max-height: 400px;">
+                <div class="empty-state">
+                    <div class="empty-state-icon"></div>
+                    <div>点击"开始分析"查找相似知识点</div>
+                </div>
+            </div>
+            
+            <div id="selectAllControls" style="margin-bottom: 15px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="color: #5eead4; font-size: 14px;">
+                        找到 <span id="matchCount">0</span> 个匹配项（相似度 ≥ <span id="currentThreshold">85</span>%）
+                    </div>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()">
+                        <span id="selectAllText">全选</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-primary" onclick="startSmartMapping()">开始分析</button>
+                <button class="btn-secondary" onclick="applySmartMappings()">应用选中映射</button>
+                <button class="btn-secondary" onclick="closeSmartMappingModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 映射详情模态框 -->
+    <div id="mappingDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2 class="modal-title">映射详情</h2>
+                <span class="close" onclick="closeMappingDetailModal()">&times;</span>
+            </div>
+            <div id="mappingDetailContent"></div>
+        </div>
+    </div>
+
+    <!-- 映射编辑模态框 -->
+    <div id="mappingEditModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2 class="modal-title">编辑映射</h2>
+                <span class="close" onclick="closeMappingEditModal()">&times;</span>
+            </div>
+            <div id="mappingEditForm" style="display:flex; flex-direction: column; gap:8px;"></div>
+            <div class="btn-group">
+                <button class="btn-primary" onclick="applyMappingEdit()">保存</button>
+                <button class="btn-secondary" onclick="closeMappingEditModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    
+
+    <!-- 绑定记录模态框 -->
+    <div id="bindingLogsModal" class="modal" onclick="if(event.target===this)closeBindingLogsModal()">
+        <div class="modal-content" style="width:20vw; max-height:25vh; min-width: clamp(300px, 20vw, 480px); overflow:auto;" tabindex="-1">
+            <div class="modal-header">
+                <h2 class="modal-title">绑定记录</h2>
+                <span class="close" onclick="closeBindingLogsModal()">&times;</span>
+            </div>
+            <div id="bindingLogsBody" style="min-height: 120px;"></div>
+            <div id="bindingLogsPagination" style="display:flex; justify-content: flex-end; gap:8px; padding-top:8px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Toast 提示函数
+        function showToast(message, type = 'success', duration = 3000) {
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.classList.add('fade-out');
+                setTimeout(() => existingToast.remove(), 300);
+            }
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        
+        // 显示成功导入的toast
+        function showImportSuccessToast(count) {
+            showToast(`成功导入 ${count} 个节点`, 'success');
+        }
+        
+        // 显示错误的toast
+        function showErrorToast(message) {
+            showToast(message, 'error');
+        }
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            updateThemeButton();
+        }
+
+        function updateThemeButton() {
+            const btn = document.getElementById('themeBtn');
+            if (!btn) return;
+            const t = (state.ui && state.ui.theme) ? state.ui.theme : 'dark';
+            const svg = t === 'dark' 
+                ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>' 
+                : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>';
+            btn.innerHTML = svg;
+            btn.title = `主题: ${t === 'dark' ? '深色' : '浅色'}`;
+            btn.setAttribute('aria-label', `切换为${t === 'dark' ? '浅色' : '深色'}主题`);
+        }
+
+        function toggleTheme() {
+            state.ui = state.ui || {};
+            const next = state.ui.theme === 'light' ? 'dark' : 'light';
+            state.ui.theme = next;
+            applyTheme(next);
+            saveToLocalStorage();
+            showToast(next === 'light' ? '已切换为浅色主题' : '已切换为深色主题', 'success');
+        }
+
+        const appEvents = new EventTarget();
+        function emit(name, detail) { try { appEvents.dispatchEvent(new CustomEvent(name, { detail })); } catch(e) {} }
+        function on(name, handler) { try { appEvents.addEventListener(name, handler); } catch(e) {} }
+
+        let statsDebounceTimer = null;
+        function scheduleStatsUpdate() { if (statsDebounceTimer) clearTimeout(statsDebounceTimer); statsDebounceTimer = setTimeout(() => { try { updateStats(); } catch (e) { setTimeout(() => { try { updateStats(); } catch (err) { showToast('同步失败', 'error'); } }, 300); } }, 120); }
+        
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const selectAllText = document.getElementById('selectAllText');
+            if (!selectAllCheckbox || !selectAllText) return;
+            const checkboxes = document.querySelectorAll('.smart-selection:not(:disabled)');
+            checkboxes.forEach(checkbox => { checkbox.checked = selectAllCheckbox.checked; });
+            selectAllText.textContent = selectAllCheckbox.checked ? '取消全选' : '全选';
+        }
+        
+        function updateSelectAllState() {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            const selectAllText = document.getElementById('selectAllText');
+            if (!selectAllCheckbox || !selectAllText) return;
+            const checkboxes = document.querySelectorAll('.smart-selection:not(:disabled)');
+            const checkedBoxes = document.querySelectorAll('.smart-selection:not(:disabled):checked');
+            if (checkboxes.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+                selectAllText.textContent = '全选';
+            } else if (checkedBoxes.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+                selectAllText.textContent = '全选';
+            } else if (checkedBoxes.length === checkboxes.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+                selectAllText.textContent = '取消全选';
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+                selectAllText.textContent = '全选';
+            }
+        }
+        // 增强版状态管理 - 新增历史记录和模板功能
+        const state = {
+            platformA: null,
+            platformB: null,
+            mappings: [],
+            selectedA: null,
+            selectedB: null,
+            importTarget: null,
+            currentFormat: 'upload',
+            importData: null,
+            visualMappingEnabled: false,
+            templates: [],
+            ui: {
+                systemTitle: '双平台关系映射管理系统',
+                platformNameA: '平台 A 关系树',
+                platformNameB: '平台 B 关系树'
+            },
+            editingMappingId: null,
+            bindingLogs: [],
+            bindingLogsPage: 1,
+            bindingLogsPageSize: 10,
+            bindingLogsTotal: 0,
+            bindingLogsLoading: false,
+            bindingLogsError: null,
+            bindingLogsUndoingId: null,
+            bindingLogsScrollBound: false,
+            bindingLogsScrollHandler: null,
+            bindingLogsUserScrolled: false,
+            bindingLogsReachedEnd: false,
+            bindingLogsDocClickHandler: null,
+            bindingLogsHiddenKeys: [],
+            exportFormat: 'json',
+            exportLoading: false,
+            mappingSettings: {
+                type: 'ONE_TO_ONE',
+                leafOnlyA: true,
+                leafOnlyB: true
+            },
+            searchCache: {},
+            searchLimit: 200,
+            smartSuggestions: [],
+            smartSearchBound: false
+        };
+
+        // 文件上传相关（保持不变）
+        const fileInput = document.getElementById('fileInput');
+        const fileUploadArea = document.getElementById('fileUploadArea');
+
+        fileUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.add('dragover');
+        });
+
+        fileUploadArea.addEventListener('dragleave', () => {
+            fileUploadArea.classList.remove('dragover');
+        });
+
+        fileUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (file.size > 10 * 1024 * 1024) {
+                showValidation('❌ 文件大小超过10MB限制', 'error');
+                state.importData = null;
+                return;
+            }
+
+            const fileType = file.name.toLowerCase();
+            const reader = new FileReader();
+
+            reader.onerror = () => {
+                showValidation('❌ 文件读取失败，请检查文件是否损坏', 'error');
+                state.importData = null;
+            };
+
+            reader.onload = (e) => {
+                try {
+                    document.getElementById('uploadFilename').textContent = `已选择文件：${file.name}`;
+                    document.getElementById('uploadText').style.display = 'none';
+                    document.getElementById('uploadHint').style.display = 'none';
+                    document.getElementById('clearFileBtn').style.display = 'flex';
+                    if (fileType.endsWith('.json')) {
+                        const jsonData = JSON.parse(e.target.result);
+                        state.uploadType = 'json';
+                        switchFormat('upload');
+                        const je = document.getElementById('jsonEditor');
+                        je.value = JSON.stringify(jsonData, null, 2);
+                        validateAndPreview(jsonData);
+                    } else if (fileType.endsWith('.csv')) {
+                        const csvData = e.target.result;
+                        state.uploadType = 'csv';
+                        switchFormat('upload');
+                        const ce = document.getElementById('csvEditor');
+                        ce.value = csvData;
+                        const parsedData = parseCSV(csvData);
+                        validateAndPreview(parsedData);
+                    } else {
+                        showValidation('❌ 不支持的文件格式，请选择 .json 或 .csv 文件', 'error');
+                        state.importData = null;
+                    }
+                } catch (error) {
+                    showValidation(`❌ 文件解析失败: ${error.message}`, 'error');
+                    state.importData = null;
+                }
+            };
+
+            reader.readAsText(file, 'UTF-8');
+        }
+        function clearSelectedFile(e) {
+            if (e) e.stopPropagation();
+            const fi = document.getElementById('fileInput');
+            fi.value = '';
+            const nameEl = document.getElementById('uploadFilename');
+            nameEl.textContent = '';
+            document.getElementById('uploadText').style.display = 'block';
+            document.getElementById('uploadHint').style.display = 'block';
+            document.getElementById('clearFileBtn').style.display = 'none';
+        }
+
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            if (lines.length === 0) throw new Error('CSV文件为空');
+
+            const detectDelimiter = (line) => {
+                if (line.includes(',')) return ',';
+                if (line.includes('\t')) return '\t';
+                return 'ws';
+            };
+            const firstLine = lines[0];
+            const delim = detectDelimiter(firstLine);
+            const splitLine = (line) => {
+                if (delim === ',') return line.split(',').map(s => s.trim());
+                if (delim === '\t') return line.split('\t').map(s => s.trim());
+                return line.trim().split(/\s+/).map(s => s.trim());
+            };
+
+            let headers = splitLine(firstLine).map(h => h.trim());
+            const canon = (h) => {
+                const k = h.toLowerCase();
+                if (k === 'parentid') return 'parentId';
+                return k === 'id' ? 'id' : (k === 'name' ? 'name' : (k === 'level' ? 'level' : h));
+            };
+            headers = headers.map(canon);
+
+            const required = ['id', 'name'];
+            for (const f of required) {
+                if (!headers.map(h => h.toLowerCase()).includes(f)) {
+                    throw new Error(`CSV缺少必要字段: ${f}`);
+                }
+            }
+
+            const nodes = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const values = splitLine(line);
+                const node = {};
+                headers.forEach((header, idx) => {
+                    if (values[idx] !== undefined) node[header] = values[idx];
+                });
+                if (node.level !== undefined) node.level = parseInt(node.level);
+                if (node.parentId === '' || String(node.parentId).toLowerCase() === 'null') node.parentId = null;
+                nodes.push(node);
+            }
+            return { nodes };
+        }
+
+        function downloadCSVTemplate() {
+            const template = `id,name,parentId,level
+1,数学基础,null,1
+2,代数,1,2
+3,几何,1,2
+4,方程,2,3
+5,函数,2,3
+6,平面几何,3,3
+7,立体几何,3,3
+8,语言艺术,null,1
+9,文学,8,2
+10,古诗词,9,3
+11,现代文,9,3`;
+
+            const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = '知识点模板.csv';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        function loadCSVExample() {
+            const example = `id,name,parentId,level
+1,数学基础,null,1
+2,代数,1,2
+3,几何,1,2
+4,方程,2,3
+5,函数,2,3`;
+            const ce = document.getElementById('csvEditor');
+            if (ce) {
+                ce.value = example;
+                try {
+                    const data = parseCSV(example);
+                    validateAndPreview(data);
+                } catch (e) {
+                    showValidation('❌ CSV格式错误: ' + e.message, 'error');
+                }
+            }
+        }
+
+        function switchFormat(format) {
+            state.currentFormat = format;
+            document.querySelectorAll('.format-tab').forEach(tab => { tab.classList.remove('active'); });
+            document.querySelector(`[data-format="${format}"]`).classList.add('active');
+            const uploadArea = document.getElementById('fileUploadArea');
+            const jsonSection = document.getElementById('jsonEditorSection');
+            const csvSection = document.getElementById('csvEditorSection');
+            const jsonEl = document.getElementById('jsonEditor');
+            const csvEl = document.getElementById('csvEditor');
+            const preview = document.getElementById('previewSection');
+            const previewContent = document.getElementById('previewContent');
+            const count = document.getElementById('previewCount');
+
+            uploadArea.style.display = format === 'upload' ? 'block' : 'none';
+
+            if (format === 'upload') {
+                if (!state.uploadType) {
+                    jsonSection.style.display = 'block';
+                    csvSection.style.display = 'none';
+                    jsonEl.readOnly = true; jsonEl.classList.add('readonly');
+                    csvEl.readOnly = false; csvEl.classList.remove('readonly');
+                    preview.style.display = 'block';
+                    previewContent.innerHTML = '';
+                    count.style.display = 'none'; count.textContent = '';
+                } else if (state.uploadType === 'json') {
+                    jsonSection.style.display = 'block';
+                    csvSection.style.display = 'none';
+                    jsonEl.readOnly = true; jsonEl.classList.add('readonly');
+                    csvEl.readOnly = false; csvEl.classList.remove('readonly');
+                } else if (state.uploadType === 'csv') {
+                    jsonSection.style.display = 'none';
+                    csvSection.style.display = 'block';
+                    csvEl.readOnly = true; csvEl.classList.add('readonly');
+                    jsonEl.readOnly = false; jsonEl.classList.remove('readonly');
+                }
+            } else {
+                jsonSection.style.display = format === 'json' ? 'block' : 'none';
+                csvSection.style.display = format === 'csv' ? 'block' : 'none';
+                jsonEl.readOnly = false; jsonEl.classList.remove('readonly');
+                csvEl.readOnly = false; csvEl.classList.remove('readonly');
+                state.uploadType = null;
+                const jsonText = jsonEl.value.trim();
+                const csvText = csvEl.value.trim();
+                if (format === 'json') {
+                    if (jsonText) {
+                        try { validateAndPreview(JSON.parse(jsonText)); }
+                        catch (e) { showValidation('❌ JSON格式错误: ' + e.message, 'error'); document.getElementById('previewSection').style.display='block'; document.getElementById('previewContent').innerHTML=''; document.getElementById('previewCount').style.display='none'; }
+                    } else { clearPreview(); }
+                } else if (format === 'csv') {
+                    if (csvText) {
+                        try { validateAndPreview(parseCSV(csvText)); }
+                        catch (e) { showValidation('❌ CSV格式错误: ' + e.message, 'error'); document.getElementById('previewSection').style.display='block'; document.getElementById('previewContent').innerHTML=''; document.getElementById('previewCount').style.display='none'; }
+                    } else { clearPreview(); }
+                }
+            }
+        }
+        function clearPreview() {
+            const preview = document.getElementById('previewSection');
+            const previewContent = document.getElementById('previewContent');
+            const count = document.getElementById('previewCount');
+            if (preview) preview.style.display = 'block';
+            if (previewContent) previewContent.innerHTML = '';
+            if (count) { count.style.display = 'none'; count.textContent = ''; }
+        }
+
+        function validateAndPreview(data) {
+            try {
+                if (!data || typeof data !== 'object') {
+                    throw new Error('数据必须是有效的对象');
+                }
+                if (!Array.isArray(data.nodes)) {
+                    throw new Error('数据格式错误：必须包含nodes数组');
+                }
+                if (data.nodes.length === 0) {
+                    throw new Error('数据为空：nodes数组不能为空');
+                }
+
+                const requiredFields = ['id', 'name'];
+                for (const node of data.nodes) {
+                    for (const field of requiredFields) {
+                        if (!node[field]) {
+                            throw new Error(`节点 ${JSON.stringify(node)} 缺少必要字段: ${field}`);
+                        }
+                    }
+                    node.id = String(node.id);
+                    if (node.parentId !== null && node.parentId !== undefined && node.parentId !== '') node.parentId = String(node.parentId);
+                }
+
+                const preview = document.getElementById('previewSection');
+                const previewContent = document.getElementById('previewContent');
+                preview.style.display = 'block';
+
+                const tree = buildTreePreview(data.nodes);
+                previewContent.innerHTML = `<pre style="margin: 0;">${tree}</pre>`;
+                document.getElementById('previewCount').style.display = 'block';
+                document.getElementById('previewCount').textContent = `共 ${data.nodes.length} 个节点`;
+
+                state.importData = data;
+                showValidation('✅ 数据验证通过，可以导入', 'success');
+            } catch (error) {
+                showValidation(`❌ 数据验证失败: ${error.message}`, 'error');
+                document.getElementById('previewSection').style.display = 'block';
+                document.getElementById('previewContent').innerHTML = '';
+                document.getElementById('previewCount').style.display = 'none';
+                state.importData = null;
+            }
+        }
+
+        function buildTreePreview(nodes) {
+            const nodeMap = {};
+            const rootNodes = [];
+
+            nodes.forEach(node => {
+                nodeMap[node.id] = { ...node, children: [] };
+            });
+
+            nodes.forEach(node => {
+                if (node.parentId && nodeMap[node.parentId]) {
+                    nodeMap[node.parentId].children.push(nodeMap[node.id]);
+                } else {
+                    rootNodes.push(nodeMap[node.id]);
+                }
+            });
+
+            const renderPreview = (node, depth = 0) => {
+                const indent = '  '.repeat(depth);
+                const childCount = node.children ? node.children.length : 0;
+                let result = `${indent}├─ ${node.name} (ID: ${node.id})`;
+                if (childCount > 0) {
+                    result += ` [${childCount}个子节点]`;
+                }
+                result += '\n';
+                if (node.children) {
+                    node.children.forEach(child => {
+                        result += renderPreview(child, depth + 1);
+                    });
+                }
+                return result;
+            };
+
+            return rootNodes.map(root => renderPreview(root)).join('\n');
+        }
+
+        function showValidation(message, type) {
+            const validationDiv = document.getElementById('validationMessage');
+            validationDiv.className = `validation-message validation-${type}`;
+            validationDiv.textContent = message;
+            validationDiv.style.display = 'block';
+        }
+
+        function loadExample() {
+            const exampleData = {
+                nodes: [
+                    { id: "1", name: "数学基础", parentId: null, level: 1 },
+                    { id: "2", name: "代数", parentId: "1", level: 2 },
+                    { id: "3", name: "几何", parentId: "1", level: 2 },
+                    { id: "4", name: "方程", parentId: "2", level: 3 },
+                    { id: "5", name: "函数", parentId: "2", level: 3 },
+                    { id: "6", name: "平面几何", parentId: "3", level: 3 },
+                    { id: "7", name: "立体几何", parentId: "3", level: 3 },
+                    { id: "8", name: "语言艺术", parentId: null, level: 1 },
+                    { id: "9", name: "文学", parentId: "8", level: 2 },
+                    { id: "10", name: "古诗词", parentId: "9", level: 3 },
+                    { id: "11", name: "现代文", parentId: "9", level: 3 }
+                ]
+            };
+            document.getElementById('jsonEditor').value = JSON.stringify(exampleData, null, 2);
+            validateAndPreview(exampleData);
+        }
+
+        document.getElementById('jsonEditor').addEventListener('input', (e) => {
+            try {
+                const data = JSON.parse(e.target.value);
+                validateAndPreview(data);
+            } catch (error) {
+                showValidation('❌ JSON格式错误: ' + error.message, 'error');
+                document.getElementById('previewSection').style.display = 'block';
+                document.getElementById('previewContent').innerHTML = '';
+                document.getElementById('previewCount').style.display = 'none';
+                state.importData = null;
+            }
+        });
+
+        document.getElementById('csvEditor').addEventListener('input', (e) => {
+            try {
+                const data = parseCSV(e.target.value);
+                validateAndPreview(data);
+            } catch (error) {
+                showValidation('❌ CSV格式错误: ' + error.message, 'error');
+                document.getElementById('previewSection').style.display = 'block';
+                document.getElementById('previewContent').innerHTML = '';
+                document.getElementById('previewCount').style.display = 'none';
+                state.importData = null;
+            }
+        });
+
+        function importPlatform(platform) {
+            state.importTarget = platform;
+            state.currentFormat = 'json';
+            state.importData = null;
+            
+            const title = platform === 'A' ? state.ui.platformNameA : state.ui.platformNameB;
+            document.getElementById('modalTitle').textContent = `导入数据`;
+            document.getElementById('importModal').style.display = 'block';
+            document.getElementById('jsonEditor').value = '';
+            document.getElementById('csvEditor').value = '';
+            document.getElementById('previewSection').style.display = 'block';
+            document.getElementById('validationMessage').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            const ra = document.getElementById('importTargetA');
+            const rb = document.getElementById('importTargetB');
+            if (ra && rb) {
+                ra.checked = platform === 'A';
+                rb.checked = platform === 'B';
+            }
+        }
+
+        function showImportDataModal() {
+            importPlatform('A');
+        }
+
+        function setImportTarget(target) {
+            state.importTarget = target === 'B' ? 'B' : 'A';
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').style.display = 'none';
+            state.importData = null;
+            const jsonEl = document.getElementById('jsonEditor');
+            const csvEl = document.getElementById('csvEditor');
+            const preview = document.getElementById('previewSection');
+            const previewContent = document.getElementById('previewContent');
+            const count = document.getElementById('previewCount');
+            const fileInput = document.getElementById('fileInput');
+            const nameEl = document.getElementById('uploadFilename');
+            const hintEl = document.getElementById('uploadHint');
+            const clearBtn = document.getElementById('clearFileBtn');
+            if (jsonEl) jsonEl.value = '';
+            if (csvEl) csvEl.value = '';
+            if (preview) preview.style.display = 'block';
+            if (previewContent) previewContent.innerHTML = '';
+            if (count) { count.style.display = 'none'; count.textContent = ''; }
+            if (fileInput) fileInput.value = '';
+            if (nameEl) nameEl.textContent = '';
+            if (hintEl) hintEl.style.display = 'block';
+            if (clearBtn) clearBtn.style.display = 'none';
+            state.uploadType = null;
+        }
+
+        function confirmImport() {
+            const data = state.importData ? JSON.parse(JSON.stringify(state.importData)) : null;
+            if (!data || !Array.isArray(data.nodes)) {
+                alert('❌ 请先上传或输入有效的数据！\n\n错误: 数据为空或格式不正确。');
+                return;
+            }
+
+            try {
+                const tree = normalizeTreeIDs(convertToTree(data.nodes));
+                expandAll(tree);
+                if (state.importTarget === 'A') {
+                    state.platformA = tree;
+                } else {
+                    state.platformB = tree;
+                }
+
+                closeImportModal();
+                renderTrees();
+                updateMappableCounts();
+                scheduleStatsUpdate();
+                saveToLocalStorage();
+                showImportSuccessToast(data.nodes.length);
+                // 清空弹窗输入与预览，避免下次打开遗留
+                closeImportModal();
+            } catch (error) {
+                showErrorToast(`导入失败: ${error.message}`);
+            }
+        }
+
+        function convertToTree(nodes) {
+            const nodeMap = {};
+            const root = {
+                id: `${state.importTarget}-root`,
+                name: state.importTarget === 'A' ? state.ui.platformNameA : state.ui.platformNameB,
+                level: 0,
+                children: [],
+                parentId: null,
+                isExpanded: true
+            };
+
+            nodes.forEach(node => {
+                nodeMap[node.id] = {
+                    ...node,
+                    children: [],
+                    isExpanded: true
+                };
+            });
+
+            nodes.forEach(node => {
+                node.id = String(node.id);
+                if (node.parentId !== null && node.parentId !== undefined && node.parentId !== '') node.parentId = String(node.parentId);
+                if (node.parentId === null || node.parentId === 'null' || node.parentId === '' || !nodeMap[node.parentId]) {
+                    root.children.push(nodeMap[node.id]);
+                } else {
+                    nodeMap[node.parentId].children.push(nodeMap[node.id]);
+                }
+            });
+
+            return root;
+        }
+        function normalizeTreeIDs(tree) {
+            const walk = (n) => {
+                if (n.id !== undefined && n.id !== null) n.id = String(n.id);
+                if (n.parentId !== undefined && n.parentId !== null && n.parentId !== '') n.parentId = String(n.parentId);
+                if (n.children) n.children.forEach(walk);
+            };
+            walk(tree);
+            return tree;
+        }
+        function expandAll(tree) {
+            const traverse = (n) => {
+                n.isExpanded = true;
+                if (n.children) n.children.forEach(traverse);
+            };
+            traverse(tree);
+        }
+
+        function renderTrees() {
+            const containerA = document.getElementById('treeA');
+            const containerB = document.getElementById('treeB');
+
+            if (state.platformA) {
+                containerA.innerHTML = renderTree(state.platformA, 'A');
+            }
+            if (state.platformB) {
+                containerB.innerHTML = renderTree(state.platformB, 'B');
+            }
+
+            if (state.visualMappingEnabled) {
+                drawVisualMappings();
+            }
+        }
+
+        function renderTree(node, platform, searchTerm = '') {
+            const hasChildren = node.children && node.children.length > 0;
+            const isSelectedA = state.selectedA?.id === node.id;
+            const isBoundToSelectedA = platform === 'B' && node.level > 0 && isNodeBoundToSelectedA(node.id);
+            
+            // 修复：正确统计绑定的目标知识点数量（去重后）
+            const bindingCount = platform === 'A' && node.level > 0 ? (() => {
+                const allTargetIds = [];
+                state.mappings.forEach(m => {
+                    if (m.sourceId === node.id && Array.isArray(m.targetIds)) {
+                        m.targetIds.forEach(targetId => {
+                            if (targetId) allTargetIds.push(targetId);
+                        });
+                    }
+                });
+                return new Set(allTargetIds).size;
+            })() : 0;
+            
+            const bindingCountB = platform === 'B' && node.level > 0 ? (() => {
+                let count = 0;
+                state.mappings.forEach(m => {
+                    if (Array.isArray(m.targetIds) && m.targetIds.includes(node.id)) {
+                        count++;
+                    }
+                });
+                return count;
+            })() : 0;
+            
+            const boundTargetNames = platform === 'A' && node.level > 0 ? (() => {
+                const allTargetNames = [];
+                state.mappings.forEach(m => {
+                    if (m.sourceId === node.id && Array.isArray(m.targetNames)) {
+                        m.targetNames.forEach(targetName => {
+                            if (targetName && !allTargetNames.includes(targetName)) {
+                                allTargetNames.push(targetName);
+                            }
+                        });
+                    }
+                });
+                return allTargetNames;
+            })() : [];
+
+            if (searchTerm && node.level > 0) {
+                const qLower = searchTerm.toLowerCase();
+                const byName = String(node.name).toLowerCase().includes(qLower);
+                const byId = String(node.id) === searchTerm;
+                if (!byName && !byId) {
+                    if (!hasChildren || !node.children.some(child => String(child.name).toLowerCase().includes(qLower) || String(child.id) === searchTerm)) {
+                        return '';
+                    }
+                }
+            }
+
+            const ctx = state.searchContext || { term: '', mode: 'fuzzy' };
+            const termLower = (ctx.term || '').toLowerCase();
+            const termRaw = (ctx.term || '');
+            const nameLower = String(node.name).toLowerCase();
+            const idLower = String(node.id).toLowerCase();
+            let displayName = node.name;
+            let displayId = node.id;
+            if (termLower) {
+                if (ctx.mode === 'exact_name' && nameLower === termLower) displayName = `<span class="search-highlight">${node.name}</span>`;
+                else if (ctx.mode === 'exact_id' && String(node.id) === termRaw) displayId = `<span class="search-highlight">${node.id}</span>`;
+                else {
+                    const idx = nameLower.indexOf(termLower);
+                    if (idx >= 0) displayName = `${node.name.slice(0, idx)}<span class="search-highlight">${node.name.slice(idx, idx + termLower.length)}</span>${node.name.slice(idx + termLower.length)}`;
+                    else if (String(node.id) === termRaw) displayId = `<span class="search-highlight">${node.id}</span>`;
+                }
+            }
+
+            return `
+                <div class="tree-node" data-id="${node.id}" data-platform="${platform}">
+                    <div class="node-content ${isSelectedA ? 'selected-a' : ''} ${isBoundToSelectedA ? 'selected-b' : ''}"
+                         onclick="selectNode('${node.id}', '${platform}')">
+                        ${hasChildren ? `<span class="toggle-icon ${node.isExpanded ? 'expanded' : ''}" onclick="toggleNode('${node.id}', '${platform}', event)">▶</span>` : '<span style="width: 20px;"></span>'}
+                        <span class="node-icon"></span>
+                        <span class="node-name">${displayName}<span class="node-id">${displayId}</span></span>
+                        ${platform === 'A' && node.level > 0 ? `<span class="binding-count" title="已绑定数量">${bindingCount}</span>` : ''}
+                        ${platform === 'B' && node.level > 0 && bindingCountB > 0 ? `<span class="binding-count" title="被绑定次数" onclick="showBindingsForB('${node.id}', event)">${bindingCountB}</span>` : ''}
+                    </div>
+                    ${platform === 'A' && boundTargetNames.length > 0 ? `<div class="bound-targets">→ ${boundTargetNames.join(', ')}</div>` : ''}
+                    <div class="children" style="display: ${node.isExpanded ? 'block' : 'none'};">
+                        ${hasChildren ? node.children.map(child => renderTree(child, platform, searchTerm)).join('') : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTreeWithMode(node, platform, searchTerm = '', mode = 'fuzzy', allowedIds) {
+            const termRaw = (searchTerm || '');
+            const termLower = termRaw.toLowerCase();
+            const shouldKeep = (n) => {
+                if (!termRaw) return true;
+                const nameLower = String(n.name).toLowerCase();
+                const idStr = String(n.id);
+                const idLower = idStr.toLowerCase();
+                const idSubMatch = termRaw.length >= 2 && idLower.includes(termLower);
+                if (mode === 'exact_name') return nameLower === termLower;
+                if (mode === 'exact_id') return idStr === termRaw;
+                return nameLower.includes(termLower) || idStr === termRaw || idSubMatch;
+            };
+            const filterNode = (n) => {
+                if (n.level === 0) return { ...n, children: (n.children || []).map(filterNode).filter(Boolean) };
+                const keepSelf = shouldKeep(n) && (!allowedIds || allowedIds.has(String(n.id)));
+                const children = (n.children || []).map(filterNode).filter(Boolean);
+                if (keepSelf || children.length) return { ...n, children };
+                return null;
+            };
+            const filtered = filterNode(node) || { ...node, children: [] };
+            return renderTree(filtered, platform, '');
+        }
+
+        function collectMatches(node, termRaw, mode) {
+            const ids = [];
+            const termLower = (termRaw || '').toLowerCase();
+            const minLen = 2;
+            const scan = (n) => {
+                if (n.level > 0) {
+                    const nameLower = String(n.name).toLowerCase();
+                    const idStr = String(n.id);
+                    const idLower = idStr.toLowerCase();
+                    let hit = false;
+                    if (!termRaw) hit = true; else if (mode === 'exact_name') hit = nameLower === termLower; else if (mode === 'exact_id') hit = idStr === termRaw; else hit = nameLower.includes(termLower) || idStr === termRaw || (termRaw.length >= minLen && idLower.includes(termLower));
+                    if (hit) ids.push(idStr);
+                }
+                if (n.children) n.children.forEach(scan);
+            };
+            scan(node);
+            return ids;
+        }
+
+        function selectNode(nodeId, platform) {
+            const node = findNodeById(nodeId, platform);
+            if (platform === 'A') {
+                state.selectedA = node;
+                state.selectedB = null;
+                renderTrees();
+                renderMappings();
+                return;
+            }
+            if (platform === 'B') {
+                if (state.selectedA && node.level > 0) {
+                    state.selectedB = node;
+                    attemptBind(state.selectedA, node);
+                    return;
+                }
+            }
+            renderTrees();
+            renderMappings();
+        }
+
+        function showMappingHint() {
+            const hint = document.getElementById('mappingHint');
+            if (hint) hint.innerHTML = '';
+        }
+
+        function isLeafNode(node) {
+            return node && node.level > 0 && (!node.children || node.children.length === 0);
+        }
+
+        function isBUsedByOtherA(bId, aId) {
+            return state.mappings.some(m => m.sourceId !== aId && Array.isArray(m.targetIds) && m.targetIds.includes(bId));
+        }
+
+        function attemptBind(aNode, bNode) {
+            const settings = state.mappingSettings;
+            if (settings.leafOnlyA && !isLeafNode(aNode)) { showToast('A平台仅允许叶子节点映射', 'error'); return; }
+            if (settings.leafOnlyB && !isLeafNode(bNode)) { showToast('B平台仅允许叶子节点映射', 'error'); return; }
+            if ((settings.type === 'ONE_TO_ONE' || settings.type === 'ONE_TO_MANY') && isBUsedByOtherA(bNode.id, aNode.id)) { showToast('该B节点已绑定到其他A节点', 'error'); return; }
+
+            const existing = state.mappings.find(m => m.sourceId === aNode.id);
+            const now = Date.now();
+            if (!existing) {
+                state.mappings.push({ id: 'map-' + now, sourceId: aNode.id, sourceName: aNode.name, targetIds: [bNode.id], targetNames: [bNode.name], targetTimes: [now], createTime: now, updateTime: now, status: 'active', creator: 'admin', updateCount: 0 });
+            
+                refreshBindingLogsIfOpen();
+            } else {
+                if (settings.type === 'ONE_TO_ONE' || settings.type === 'MANY_TO_ONE') {
+                    existing.targetIds = [bNode.id];
+                    existing.targetNames = [bNode.name];
+                    existing.targetTimes = [now];
+                    existing.updateTime = now;
+                    
+                    refreshBindingLogsIfOpen();
+                } else {
+                    if (!existing.targetIds.includes(bNode.id)) {
+                        existing.targetIds.push(bNode.id);
+                        existing.targetNames.push(bNode.name);
+                        if (!Array.isArray(existing.targetTimes)) existing.targetTimes = [];
+                        existing.targetTimes.push(now);
+                        existing.updateTime = now;
+                        
+                        refreshBindingLogsIfOpen();
+                    }
+                }
+            }
+            renderTrees();
+            renderMappings();
+            updateStats();
+            saveToLocalStorage();
+        }
+
+        function createMapping() {
+            if (!state.selectedA || !state.selectedB) return;
+            attemptBind(state.selectedA, state.selectedB);
+            clearSelection();
+            renderTrees();
+            renderMappings();
+            updateStats();
+            saveToLocalStorage();
+        }
+
+        function clearSelection() {
+            state.selectedA = null;
+            state.selectedB = null;
+            document.getElementById('mappingHint').innerHTML = '';
+        }
+
+        function toggleNode(nodeId, platform, event) {
+            event.stopPropagation();
+            const node = findNodeById(nodeId, platform);
+            if (node) {
+                node.isExpanded = !node.isExpanded;
+                renderTrees();
+            }
+        }
+
+        function quickMap(nodeId, platform, event) {
+            event.stopPropagation();
+            selectNode(nodeId, platform);
+        }
+
+        function findNodeById(nodeId, platform) {
+            const tree = platform === 'A' ? state.platformA : state.platformB;
+            return findNodeRecursive(tree, nodeId);
+        }
+
+        function findNodeRecursive(node, nodeId) {
+            if (node.id === nodeId) return node;
+            if (node.children) {
+                for (let child of node.children) {
+                    const found = findNodeRecursive(child, nodeId);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function renderMappings() {
+            const container = document.getElementById('mappingsList');
+            const selectedA = state.selectedA;
+            const list = selectedA ? state.mappings.filter(m => m.sourceId === selectedA.id) : [];
+
+            if (!selectedA || list.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div>选择右侧节点绑定</div>
+                    </div>
+                `;
+                return;
+            }
+
+            if (selectedA) {
+                const items = list
+                    .map(m => m.targetIds.map((tid, idx) => ({ id: tid, name: m.targetNames[idx], time: (m.targetTimes && m.targetTimes[idx]) || m.updateTime || 0 })))
+                    .flat()
+                    .sort((a,b) => b.time - a.time)
+                    .map(item => `<div class=\"target-item\">${item.name} <button class=\"btn-small btn-delete\" onclick=\"removeMappingTarget('${selectedA.id}', '${item.id}')\">移除</button></div>`)
+                    .join('');
+                container.innerHTML = `
+                    <div class="mapping-item" style="cursor: default;">
+                        <div class="mapping-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div class="mapping-title">选中节点：${selectedA.name}</div>
+                            <button class="btn-small btn-delete" onclick="showRemoveAllConfirm('${selectedA.id}', this)" title="移除该节点的所有绑定">移除全部</button>
+                        </div>
+                        <div>
+                            ${items || '<div class="empty-state" style="padding: 10px;">选择右侧节点绑定</div>'}
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+        }
+        function isNodeBoundToSelectedA(bNodeId) {
+            if (!state.selectedA) return false;
+            return state.mappings.some(m => m.sourceId === state.selectedA.id && Array.isArray(m.targetIds) && m.targetIds.includes(bNodeId));
+        }
+
+        function deleteMapping(mappingId) {
+            if (confirm('确定删除此映射关系吗？')) {
+                const mapping = state.mappings.find(m => m.id === mappingId);
+                state.mappings = state.mappings.filter(m => m.id !== mappingId);
+                renderTrees();
+                renderMappings();
+                updateStats();
+                saveToLocalStorage();
+                refreshBindingLogsIfOpen();
+            }
+        }
+        function removeAllMappingsForSource(sourceId) {
+            const mappingsToRemove = state.mappings.filter(m => m.sourceId === sourceId);
+            if (mappingsToRemove.length === 0) return;
+            
+            // 获取第一个映射的sourceName用于历史记录
+            const sourceName = mappingsToRemove[0].sourceName;
+            const targetNames = mappingsToRemove.flatMap(m => m.targetNames).join(', ');
+            
+            // 移除所有相关映射
+            state.mappings = state.mappings.filter(m => m.sourceId !== sourceId);
+            
+            
+            renderTrees();
+            renderMappings();
+            updateStats();
+            saveToLocalStorage();
+            showNotification('已移除该节点的所有绑定关系', 'success');
+            refreshBindingLogsIfOpen();
+        }
+        function showRemoveAllConfirm(sourceId, btn) {
+            const existing = document.querySelector('.confirm-popover');
+            if (existing) existing.remove();
+            const pop = document.createElement('div');
+            pop.className = 'confirm-popover';
+            pop.style.position = 'fixed';
+            const isLight = (state.ui && state.ui.theme) === 'light';
+            pop.style.background = isLight ? '#FFFFFF' : '#0F1826';
+            pop.style.border = isLight ? '1px solid #e2e8f0' : '1px solid #3A5364';
+            pop.style.boxShadow = isLight ? '0 8px 24px rgba(15,23,42,0.12)' : '0 8px 24px rgba(0,0,0,0.4)';
+            pop.style.borderRadius = '14px';
+            pop.style.padding = '16px';
+            pop.style.zIndex = '3000';
+            pop.style.minWidth = '220px';
+            pop.style.animation = 'fadeIn 0.18s ease';
+            pop.innerHTML = `
+                <div style="font-size:13px; color:${isLight ? '#334155' : '#e2e8f0'}; margin-bottom:8px;">确认移除该节点的所有绑定？</div>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                    <button class="btn-small" onclick="this.closest('.confirm-popover').remove()">取消</button>
+                    <button class="btn-small btn-delete" onclick="confirmRemoveAllNow('${sourceId}')">确认</button>
+                </div>
+            `;
+            document.body.appendChild(pop);
+            const rect = btn.getBoundingClientRect();
+            const vw = window.innerWidth; const vh = window.innerHeight; const pad = 6;
+            let left = rect.left;
+            let top = rect.bottom + 8;
+            const width = Math.max(pop.offsetWidth, 220);
+            const height = Math.max(pop.offsetHeight, 60);
+            if (left + width > vw - pad) left = Math.max(pad, vw - width - pad);
+            if (top + height > vh - pad) top = Math.max(pad, rect.top - height - pad);
+            pop.style.left = left + 'px';
+            pop.style.top = top + 'px';
+            const remove = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', remove, true); } };
+            setTimeout(() => document.addEventListener('click', remove, true), 0);
+            pop.addEventListener('click', (e) => e.stopPropagation());
+        }
+        function confirmRemoveAllNow(sourceId) {
+            const pop = document.querySelector('.confirm-popover');
+            if (pop) pop.remove();
+            removeAllMappingsForSource(sourceId);
+        }
+        function showUndoConfirm(logId, btn) {
+            const existing = document.querySelector('.confirm-popover');
+            if (existing) existing.remove();
+            const pop = document.createElement('div');
+            pop.className = 'confirm-popover';
+            pop.style.position = 'fixed';
+            const isLight = (state.ui && state.ui.theme) === 'light';
+            pop.style.background = isLight ? '#FFFFFF' : '#0F1826';
+            pop.style.border = isLight ? '1px solid #e2e8f0' : '1px solid #3A5364';
+            pop.style.boxShadow = isLight ? '0 8px 24px rgba(15,23,42,0.12)' : '0 8px 24px rgba(0,0,0,0.4)';
+            pop.style.borderRadius = '14px';
+            pop.style.padding = '16px';
+            pop.style.zIndex = '3000';
+            pop.style.minWidth = '220px';
+            pop.style.animation = 'fadeIn 0.18s ease';
+            pop.innerHTML = `
+                <div style="font-size:13px; color:${isLight ? '#334155' : '#e2e8f0'}; margin-bottom:8px;">确认撤回该绑定记录吗？</div>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                    <button class="btn-small" onclick="this.closest('.confirm-popover').remove()">取消</button>
+                    <button class="btn-small btn-delete" onclick="confirmUndoNow('${logId}')">确认</button>
+                </div>
+            `;
+            document.body.appendChild(pop);
+            const rect = btn.getBoundingClientRect();
+            const vw = window.innerWidth; const vh = window.innerHeight; const pad = 6;
+            const width = Math.max(pop.offsetWidth, 220);
+            const height = Math.max(pop.offsetHeight, 60);
+            let left = rect.left;
+            let top = rect.top - height - 8;
+            if (left + width > vw - pad) left = Math.max(pad, vw - width - pad);
+            if (top < pad) top = rect.bottom + 8;
+            pop.style.left = left + 'px';
+            pop.style.top = top + 'px';
+            const remove = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', remove, true); } };
+            setTimeout(() => document.addEventListener('click', remove, true), 0);
+            pop.addEventListener('click', (e) => e.stopPropagation());
+        }
+        function confirmUndoNow(logId) {
+            const pop = document.querySelector('.confirm-popover');
+            if (pop) pop.remove();
+            undoBindingLog(logId);
+        }
+        function removeMappingTarget(sourceId, targetId) {
+            const mapping = state.mappings.find(m => m.sourceId === sourceId && m.targetIds.includes(targetId));
+            if (!mapping) return;
+            const idx = mapping.targetIds.indexOf(targetId);
+            if (idx >= 0) {
+                mapping.targetIds.splice(idx, 1);
+                const removedName = mapping.targetNames.splice(idx, 1)[0];
+                if (Array.isArray(mapping.targetTimes)) mapping.targetTimes.splice(idx, 1);
+                mapping.updateTime = Date.now();
+                mapping.updateCount = (mapping.updateCount || 0) + 1;
+            
+                refreshBindingLogsIfOpen();
+            }
+            if (mapping.targetIds.length === 0) {
+                state.mappings = state.mappings.filter(m => m !== mapping);
+            }
+            renderTrees();
+            renderMappings();
+            updateStats();
+            saveToLocalStorage();
+        }
+        function showBindingsForB(nodeId, event) {
+            const names = [];
+            state.mappings.forEach(m => {
+                if (Array.isArray(m.targetIds) && m.targetIds.includes(nodeId)) {
+                    names.push(m.sourceName);
+                }
+            });
+            const existing = document.querySelector('.bindings-popover');
+            if (existing) existing.remove();
+            const pop = document.createElement('div');
+            pop.className = 'bindings-popover';
+            pop.style.animation = 'fadeIn 0.18s ease';
+            pop.innerHTML = names.length > 0 ? names.map(n => `<div style="padding:4px 6px; font-size:13px;">${n}</div>`).join('') : '<div style="padding:4px 6px; font-size:13px; color:#94a3b8;">无绑定</div>';
+            document.body.appendChild(pop);
+            const rect = event.target.getBoundingClientRect();
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const pad = 4;
+            // Initial position below the badge
+            let left = rect.left;
+            let top = rect.bottom + pad;
+            // Measure and clamp within viewport
+            const width = Math.max(pop.offsetWidth, 180);
+            const height = Math.min(pop.offsetHeight, 140);
+            if (left + width > vw - pad) left = Math.max(pad, vw - width - pad);
+            if (top + height > vh - pad) top = Math.max(pad, rect.top - height - pad);
+            pop.style.left = `${left}px`;
+            pop.style.top = `${top}px`;
+            const remove = () => { pop.remove(); document.removeEventListener('click', remove); };
+            setTimeout(() => document.addEventListener('click', remove), 0);
+            pop.addEventListener('click', (e) => e.stopPropagation());
+            event.stopPropagation();
+        }
+
+        function editMapping(mappingId) {
+            const mapping = state.mappings.find(m => m.id === mappingId);
+            if (!mapping) return;
+            state.editingMappingId = mappingId;
+            const form = document.getElementById('mappingEditForm');
+            form.innerHTML = `
+                <div style="margin-bottom:8px; color:#5eead4;">源节点：${mapping.sourceName}</div>
+                ${mapping.targetNames.map((name, idx) => `
+                    <div style='display:flex; gap:8px; align-items:center;'>
+                        <input type='text' value='${name}' data-idx='${idx}' style='flex:1; padding:8px; border-radius:6px; border:1px solid rgba(94,234,212,0.2); background: rgba(15,23,42,0.4); color:#e2e8f0;'>
+                        <button class='btn-small btn-delete' onclick='removeEditTarget(${idx}); return false;'>移除</button>
+                    </div>
+                `).join('')}
+                <div style='margin-top:8px;'>
+                    <input id='newEditTarget' type='text' placeholder='新增目标名称' style='width:70%; padding:8px; border-radius:6px; border:1px solid rgba(94,234,212,0.2); background: rgba(15,23,42,0.4); color:#e2e8f0;'>
+                    <button class='btn-small btn-edit' onclick='addEditTarget(); return false;'>添加</button>
+                </div>
+            `;
+            document.getElementById('mappingEditModal').style.display = 'block';
+        }
+        function removeEditTarget(idx) {
+            const mapping = state.mappings.find(m => m.id === state.editingMappingId);
+            if (!mapping) return;
+            mapping.targetNames.splice(idx, 1);
+            document.querySelector(`#mappingEditForm button[onclick="removeEditTarget(${idx}); return false;"]`).parentElement.remove();
+        }
+        function addEditTarget() {
+            const val = document.getElementById('newEditTarget').value.trim();
+            if (!val) return;
+            const mapping = state.mappings.find(m => m.id === state.editingMappingId);
+            if (!mapping) return;
+            mapping.targetNames.push(val);
+            editMapping(state.editingMappingId);
+        }
+        function applyMappingEdit() {
+            const mapping = state.mappings.find(m => m.id === state.editingMappingId);
+            if (!mapping) return;
+            const inputs = document.querySelectorAll('#mappingEditForm input[type="text"][data-idx]');
+            mapping.targetNames = Array.from(inputs).map(i => i.value.trim()).filter(Boolean);
+            mapping.updateTime = Date.now();
+            mapping.updateCount = (mapping.updateCount || 0) + 1;
+            
+            renderMappings();
+            saveToLocalStorage();
+            closeMappingEditModal();
+        }
+        function closeMappingEditModal() { document.getElementById('mappingEditModal').style.display = 'none'; state.editingMappingId = null; }
+
+        function updateStats() {
+            if (!state.platformA || !state.platformB) return;
+
+            const totalA = countMappableNodes(state.platformA, state.mappingSettings.leafOnlyA);
+            const totalB = countMappableNodes(state.platformB, state.mappingSettings.leafOnlyB);
+
+            const mappableAIds = getMappableIds(state.platformA, state.mappingSettings.leafOnlyA);
+            const mappableBIds = getMappableIds(state.platformB, state.mappingSettings.leafOnlyB);
+
+            const mappedASourceIds = new Set(state.mappings.map(m => m.sourceId));
+            const mappedBTargetIds = new Set(state.mappings.flatMap(m => Array.isArray(m.targetIds) ? m.targetIds : []));
+
+            const mappedA = mappableAIds.filter(id => mappedASourceIds.has(id)).length;
+            const mappedB = mappableBIds.filter(id => mappedBTargetIds.has(id)).length;
+
+            const statsAEl = document.getElementById('statsA');
+            const statsBEl = document.getElementById('statsB');
+            const aText = `${mappedA}/${totalA}`;
+            const bText = `${mappedB}/${totalB}`;
+            if (statsAEl && statsAEl.textContent !== aText) statsAEl.textContent = aText;
+            if (statsBEl && statsBEl.textContent !== bText) statsBEl.textContent = bText;
+            document.getElementById('totalMappings').textContent = `${state.mappings.length} 条`;
+            const covAEl = document.getElementById('coverageA');
+            const covBEl = document.getElementById('coverageB');
+            const covAText = `${totalA > 0 ? Math.round((mappedA / totalA) * 100) : 0}%`;
+            const covBText = `${totalB > 0 ? Math.round((mappedB / totalB) * 100) : 0}%`;
+            if (covAEl && covAEl.textContent !== covAText) covAEl.textContent = covAText;
+            if (covBEl && covBEl.textContent !== covBText) covBEl.textContent = covBText;
+            const covALabel = document.getElementById('coverageALabel');
+            const covBLabel = document.getElementById('coverageBLabel');
+            if (covALabel) covALabel.textContent = `${state.ui.platformNameA}覆盖率:`;
+            if (covBLabel) covBLabel.textContent = `${state.ui.platformNameB}覆盖率:`;
+
+            const lastUpdate = state.mappings.length > 0 ? Math.max(...state.mappings.map(m => m.updateTime)) : null;
+            document.getElementById('lastUpdate').textContent = lastUpdate ? new Date(lastUpdate).toLocaleString() : '-';
+            updateSmartMappingStatsInternal(totalA, mappedA, totalB, mappedB);
+        }
+
+        function updateSmartMappingStatsInternal(totalA, mappedA, totalB, mappedB) {
+            const el = document.getElementById('smartMappingStats');
+            if (!el) return;
+            const remainA = Math.max(0, totalA - mappedA);
+            const remainB = Math.max(0, totalB - mappedB);
+            el.textContent = `A总:${totalA} 已映射:${mappedA} 未映射:${remainA}  |  B总:${totalB} 已映射:${mappedB} 未映射:${remainB}`;
+        }
+
+        function countNodes(node) {
+            if (!node.children || node.children.length === 0) return 0;
+            let count = node.children.length;
+            node.children.forEach(child => {
+                count += countNodes(child);
+            });
+            return count;
+        }
+
+        function countMappedNodes(node, platform) {
+            if (!node.children || node.children.length === 0) return 0;
+            let count = 0;
+            node.children.forEach(child => {
+                if (state.mappings.some(m => m.sourceId === child.id || m.targetIds.includes(child.id))) {
+                    count++;
+                }
+                count += countMappedNodes(child, platform);
+            });
+            return count;
+        }
+
+        function exportMappings() {
+            if (state.mappings.length === 0) {
+                alert('没有映射关系可导出！');
+                return;
+            }
+
+            const exportData = {
+                exportTime: new Date().toISOString(),
+                mappingCount: state.mappings.length,
+                platformA: state.platformA ? { name: state.platformA.name, nodeCount: countNodes(state.platformA) } : null,
+                platformB: state.platformB ? { name: state.platformB.name, nodeCount: countNodes(state.platformB) } : null,
+                mappings: state.mappings,
+                templates: state.templates
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${state.ui.platformNameA}_${state.ui.platformNameB}关系映射 ${formatDateYMD(new Date())}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showExportOptions(btn) {
+            const existing = document.querySelector('.confirm-popover');
+            if (existing) existing.remove();
+            const pop = document.createElement('div');
+            pop.className = 'confirm-popover';
+            pop.style.position = 'fixed';
+            const isLight = (state.ui && state.ui.theme) === 'light';
+            pop.style.background = isLight ? '#FFFFFF' : '#0F1826';
+            pop.style.border = isLight ? '1px solid #e2e8f0' : '1px solid #3A5364';
+            pop.style.boxShadow = isLight ? '0 8px 24px rgba(15,23,42,0.12)' : '0 8px 24px rgba(0,0,0,0.4)';
+            pop.style.borderRadius = '14px';
+            pop.style.padding = '16px';
+            pop.style.zIndex = '3000';
+            pop.style.minWidth = '220px';
+            pop.style.animation = 'fadeIn 0.18s ease';
+            state.exportFormat = 'json';
+            state.exportLoading = false;
+            pop.innerHTML = `
+                <div style="font-size:16px; color:${isLight ? '#0f172a' : '#FFFFFF'}; margin-bottom:12px; font-weight:600;">选择导出格式</div>
+                <div id="exportOptions" style="display:flex; gap:12px; justify-content:center; align-items:center; margin-bottom:16px;">
+                    <button id="opt-json" class="btn-small" onclick="setExportFormat('json', this)" style="min-width:80px; text-align:center; padding:8px 16px; border-radius:10px; background:linear-gradient(135deg, #4F8EEA, #6AA5F5); color:#FFFFFF; font-weight:600; border:none; box-shadow:0 2px 4px rgba(79, 142, 234, 0.3);">JSON格式</button>
+                    <button id="opt-csv" class="btn-small btn-secondary" onclick="setExportFormat('csv', this)" style="min-width:80px; text-align:center; padding:8px 16px; border-radius:10px; background:#8C9CB2; color:#FFFFFF; font-weight:600; border:none;">CSV格式</button>
+                </div>
+                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                    <button id="export-cancel" class="btn-small" onclick="this.closest('.confirm-popover').remove()" style="border-radius:8px; background:#FFFFFF; color:#1E262E; padding:6px 16px; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.1);">取消</button>
+                    <button id="export-confirm" class="btn-small btn-delete" onclick="confirmExport()" style="border-radius:8px; background:#E64A43; color:#FFFFFF; padding:6px 16px; font-weight:600; box-shadow:0 1px 3px rgba(230, 74, 67, 0.3);">确定</button>
+                </div>
+            `;
+            document.body.appendChild(pop);
+            const rect = btn.getBoundingClientRect();
+            const vw = window.innerWidth; const vh = window.innerHeight; const pad = 6;
+            const width = Math.max(pop.offsetWidth, 220);
+            const height = Math.max(pop.offsetHeight, 60);
+            let left = rect.left;
+            let top = rect.bottom + 8;
+            if (left + width > vw - pad) left = Math.max(pad, vw - width - pad);
+            if (top + height > vh - pad) top = Math.max(pad, rect.top - height - pad);
+            pop.style.left = left + 'px';
+            pop.style.top = top + 'px';
+            const remove = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', remove, true); } };
+            setTimeout(() => document.addEventListener('click', remove, true), 0);
+            pop.addEventListener('click', (e) => e.stopPropagation());
+            updateExportOptionsUI();
+        }
+
+        function setExportFormat(fmt, el) {
+            state.exportFormat = fmt === 'csv' ? 'csv' : 'json';
+            updateExportOptionsUI();
+        }
+
+        function updateExportOptionsUI() {
+            const jsonBtn = document.getElementById('opt-json');
+            const csvBtn = document.getElementById('opt-csv');
+            const confirmBtn = document.getElementById('export-confirm');
+            const cancelBtn = document.getElementById('export-cancel');
+            if (!jsonBtn || !csvBtn || !confirmBtn || !cancelBtn) return;
+            const jsonActive = state.exportFormat === 'json';
+            
+            // JSON按钮样式
+            if (jsonActive) {
+                jsonBtn.style.background = 'linear-gradient(135deg, #4F8EEA, #6AA5F5)';
+                jsonBtn.style.boxShadow = '0 2px 4px rgba(79, 142, 234, 0.3)';
+                jsonBtn.style.color = '#FFFFFF';
+            } else {
+                jsonBtn.style.background = '#8C9CB2';
+                jsonBtn.style.boxShadow = 'none';
+                jsonBtn.style.color = '#FFFFFF';
+            }
+            
+            // CSV按钮样式
+            if (!jsonActive) {
+                csvBtn.style.background = 'linear-gradient(135deg, #4F8EEA, #6AA5F5)';
+                csvBtn.style.boxShadow = '0 2px 4px rgba(79, 142, 234, 0.3)';
+                csvBtn.style.color = '#FFFFFF';
+            } else {
+                csvBtn.style.background = '#8C9CB2';
+                csvBtn.style.boxShadow = 'none';
+                csvBtn.style.color = '#FFFFFF';
+            }
+            jsonBtn.style.textAlign = 'center';
+            csvBtn.style.textAlign = 'center';
+            jsonBtn.style.padding = '8px 16px';
+            csvBtn.style.padding = '8px 16px';
+            jsonBtn.style.borderRadius = '10px';
+            csvBtn.style.borderRadius = '10px';
+            jsonBtn.style.fontWeight = '600';
+            csvBtn.style.fontWeight = '600';
+            jsonBtn.style.minWidth = '80px';
+            csvBtn.style.minWidth = '80px';
+            [jsonBtn, csvBtn, confirmBtn, cancelBtn].forEach(b => { b.disabled = state.exportLoading; });
+            confirmBtn.textContent = state.exportLoading ? '导出中...' : '确定';
+        }
+
+        
+
+        function confirmExport() {
+            if (state.exportLoading) return;
+            const pop = document.querySelector('.confirm-popover');
+            const fmt = state.exportFormat || 'json';
+            if (!state.mappings || state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            state.exportLoading = true; updateExportOptionsUI();
+            try {
+                if (fmt === 'csv') exportMappingsCSV(); else exportMappingsJSON();
+            } finally {
+                state.exportLoading = false; updateExportOptionsUI();
+                if (pop) pop.remove();
+            }
+        }
+
+        function exportMappingsJSON() {
+            exportMappings();
+        }
+
+        function exportMappingsCSV() {
+            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            const rows = [];
+            rows.push(['sourceId','sourceName','targetId','targetName'].join(','));
+            state.mappings.forEach(m => {
+                (m.targetIds || []).forEach((tid, idx) => {
+                    const tname = (m.targetNames || [])[idx] || '';
+                    rows.push([escapeCSV(m.sourceId), escapeCSV(m.sourceName), escapeCSV(tid), escapeCSV(tname)].join(','));
+                });
+            });
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${state.ui.platformNameA}_${state.ui.platformNameB}关系映射 ${formatDateYMD(new Date())}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function escapeCSV(v) {
+            const s = String(v == null ? '' : v);
+            if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+            return s;
+        }
+
+        function formatDateYMD(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth()+1).padStart(2,'0');
+            const day = String(d.getDate()).padStart(2,'0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function showClearAllConfirm(btn) {
+            const existing = document.querySelector('.confirm-popover');
+            if (existing) existing.remove();
+            const pop = document.createElement('div');
+            pop.className = 'confirm-popover';
+            pop.style.position = 'fixed';
+            const isLight = (state.ui && state.ui.theme) === 'light';
+            pop.style.background = isLight ? '#FFFFFF' : '#0F1826';
+            pop.style.border = isLight ? '1px solid #e2e8f0' : '1px solid #3A5364';
+            pop.style.boxShadow = isLight ? '0 8px 24px rgba(15,23,42,0.12)' : '0 8px 24px rgba(0,0,0,0.4)';
+            pop.style.borderRadius = '14px';
+            pop.style.padding = '16px';
+            const rect = btn.getBoundingClientRect();
+            let left = rect.left - 30; if (left < 8) left = 8; pop.style.left = `${left}px`;
+            pop.style.top = `${rect.bottom + 6}px`;
+            pop.style.zIndex = '3000';
+            pop.innerHTML = `
+                <div style='font-size:13px; color:${isLight ? '#334155' : '#e2e8f0'}; margin-bottom:8px;'>确认清空所有数据和绑定关系？此操作不可恢复。</div>
+                <div style='display:flex; gap:8px; justify-content:flex-end;'>
+                    <button class='btn-small' onclick="this.closest('.confirm-popover').remove()">取消</button>
+                    <button class='btn-small btn-danger' onclick='clearAllNow()'>确认清空</button>
+                </div>
+            `;
+            document.body.appendChild(pop);
+            const removeByOutside = (e) => { if (!pop.contains(e.target)) { try { pop.remove(); } catch(_){} document.removeEventListener('mousedown', removeByOutside, true); document.removeEventListener('focusin', removeByFocus, true); } };
+            const removeByFocus = (e) => { if (!pop.contains(e.target)) { try { pop.remove(); } catch(_){} document.removeEventListener('focusin', removeByFocus, true); document.removeEventListener('mousedown', removeByOutside, true); } };
+            setTimeout(() => { document.addEventListener('mousedown', removeByOutside, true); document.addEventListener('focusin', removeByFocus, true); }, 0);
+            pop.addEventListener('click', (e) => e.stopPropagation());
+        }
+        function clearAllNow() {
+            const savedTheme = (state.ui && state.ui.theme) || (() => { try { const d = JSON.parse(localStorage.getItem('knowledgeMappingState')||'{}'); return (d.ui && d.ui.theme) || 'dark'; } catch(_) { return 'dark'; } })();
+            state.platformA = null;
+            state.platformB = null;
+            state.mappings = [];
+            state.selectedA = null;
+            state.selectedB = null;
+            state.history = [];
+            state.historyIndex = -1;
+            state.ui = state.ui || {};
+            state.ui.theme = savedTheme;
+            document.getElementById('treeA').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div id="emptyA">请导入平台 A 数据</div>
+                    </div>
+                `;
+            document.getElementById('treeB').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <div id="emptyB">请导入平台 B 数据</div>
+                    </div>
+                `;
+                
+            renderMappings();
+            updateStats();
+            saveToLocalStorage();
+            applyTheme(savedTheme);
+            const pop = document.querySelector('.confirm-popover'); if (pop) pop.remove();
+            showToast('已清空全部数据', 'success');
+        }
+        function initTitles() {
+            document.title = state.ui.systemTitle;
+            const sysText = document.getElementById('systemTitleText');
+            if (sysText) sysText.textContent = state.ui.systemTitle;
+            const aText = document.getElementById('platformTitleAText');
+            if (aText) aText.textContent = state.ui.platformNameA;
+            const bText = document.getElementById('platformTitleBText');
+            if (bText) bText.textContent = state.ui.platformNameB;
+            const emptyA = document.getElementById('emptyA');
+            if (emptyA) emptyA.textContent = '请导入平台 A 数据';
+            const emptyB = document.getElementById('emptyB');
+            if (emptyB) emptyB.textContent = '请导入平台 B 数据';
+        }
+        function startEditTitle(type) {
+            let container, current;
+            if (type === 'system') { container = document.getElementById('systemTitleDisplay'); current = state.ui.systemTitle; }
+            else if (type === 'A') { container = document.querySelector('.panel-title .edit-icon').closest('.panel-title'); current = state.ui.platformNameA; }
+            else if (type === 'B') { container = document.querySelectorAll('.panel-title .edit-icon')[1].closest('.panel-title'); current = state.ui.platformNameB; }
+            if (!container) return;
+            const input = document.createElement('input');
+            input.className = 'title-input';
+            input.maxLength = 30;
+            input.value = current;
+            const btn = document.createElement('button');
+            btn.className = 'btn-primary btn-small';
+            btn.textContent = '保存';
+            const err = document.createElement('div');
+            err.style.fontSize = '12px';
+            err.style.color = '#f87171';
+            err.style.marginTop = '4px';
+            const old = container.innerHTML;
+            container.innerHTML = '';
+            container.appendChild(input);
+            container.appendChild(btn);
+            container.appendChild(err);
+            input.focus();
+            const save = () => {
+                const val = input.value.trim();
+                if (!val) { err.textContent = '标题不能为空'; input.focus(); return false; }
+                if (val.length > 30) { err.textContent = '最多30个字符'; input.focus(); return false; }
+                if (type === 'system') { state.ui.systemTitle = val; }
+                if (type === 'A') { state.ui.platformNameA = val; if (state.platformA) state.platformA.name = val; }
+                if (type === 'B') { state.ui.platformNameB = val; if (state.platformB) state.platformB.name = val; }
+                container.innerHTML = old;
+                initTitles();
+                renderTrees();
+                updateStats();
+                saveToLocalStorage();
+                showToast('保存成功', 'success');
+                return true;
+            };
+            btn.onclick = save;
+            input.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+            input.onblur = () => { try { save(); } catch (e) {} };
+        }
+
+        // ===== 新增功能：本地存储 =====
+        function saveToLocalStorage() {
+            try {
+                const data = {
+                    platformA: state.platformA,
+                    platformB: state.platformB,
+                    mappings: state.mappings,
+                    timestamp: Date.now(),
+                    version: '2.0',
+                    ui: state.ui,
+                    history: state.history,
+                    historyIndex: state.historyIndex,
+                    historyMinimized: state.historyMinimized,
+                    historyUnread: state.historyUnread,
+                    mappingSettings: state.mappingSettings
+                };
+                localStorage.setItem('knowledgeMappingState', JSON.stringify(data));
+                console.log('已自动保存到本地存储');
+            } catch (error) {
+                console.error('本地存储失败:', error);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('knowledgeMappingState');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    state.platformA = data.platformA;
+                    state.platformB = data.platformB;
+                    if (state.platformA) expandAll(state.platformA);
+                    if (state.platformB) expandAll(state.platformB);
+                    state.mappings = data.mappings || [];
+                    if (data.ui) state.ui = data.ui;
+                    state.history = data.history || [];
+                    state.historyIndex = typeof data.historyIndex === 'number' ? data.historyIndex : -1;
+                    state.historyMinimized = !!data.historyMinimized;
+                    state.historyUnread = data.historyUnread || 0;
+                    if (data.mappingSettings) state.mappingSettings = data.mappingSettings;
+                    console.log('已从本地存储恢复数据');
+                    
+                    renderTrees();
+                    renderMappings();
+                    updateStats();
+                    initTitles();
+                    
+                    // 显示恢复提示
+                    const lastSaved = new Date(data.timestamp).toLocaleString();
+                    showNotification(`已自动恢复上次的数据（${lastSaved}）`, 'success');
+                }
+            } catch (error) {
+                console.error('加载本地存储失败:', error);
+                localStorage.removeItem('knowledgeMappingState');
+            }
+        }
+
+        // ===== 新增功能：操作历史 =====
+        function addToHistory() { }
+
+        function refreshBindingLogsIfOpen() {
+            const modal = document.getElementById('bindingLogsModal');
+            if (modal && modal.style.display === 'block') {
+                loadBindingLogsPage(1);
+            }
+        }
+
+        function undo() { }
+
+        function redo() { }
+
+        function updateHistoryPanel() { }
+        function openHistoryModal() { }
+        function closeHistoryModal() { }
+        function renderHistoryModal() { }
+
+        // ===== 绑定记录：分页 + 撤回 =====
+        const makeBindingLogKey = (log) => `${log.time}|${log.sourceName}|${(log.targetName || ((log.targetNames||[]).join(',')))}|${log.action||''}`;
+        const api = {
+            fetchBindingLogs: (page, size) => new Promise((resolve) => {
+                const rows = [];
+                (state.mappings || []).forEach(m => {
+                    const times = Array.isArray(m.targetTimes) ? m.targetTimes : [];
+                    (m.targetIds || []).forEach((tid, idx) => {
+                        const name = (m.targetNames || [])[idx] || '';
+                        const t = times[idx] || m.updateTime || m.createTime || Date.now();
+                        rows.push({ id: `pair-${m.id}-${tid}`, time: t, sourceName: m.sourceName, targetName: name, action: 'active', status: 'active' });
+                    });
+                });
+                rows.sort((a,b) => b.time - a.time);
+                const filtered = rows.filter(item => !state.bindingLogsHiddenKeys.includes(`${item.time}|${item.sourceName}|${item.targetName}|${item.action}`));
+                const total = filtered.length;
+                const start = (page - 1) * size;
+                const items = filtered.slice(start, start + size);
+                setTimeout(() => resolve({ items, total }), 80);
+            }),
+            undoBinding: (log) => new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    try {
+                        const sourceNode = state.platformA ? getAllNodes(state.platformA).find(n => n.name === log.sourceName) : null;
+                        if (sourceNode) {
+                            const tn = log.targetName;
+                            if (!tn) {
+                                state.mappings = state.mappings.filter(m => m.sourceId !== sourceNode.id);
+                            } else {
+                                const targetNode = state.platformB ? getAllNodes(state.platformB).find(n => n.name === tn) : null;
+                                if (targetNode) removeMappingTarget(sourceNode.id, targetNode.id);
+                            }
+                            saveToLocalStorage();
+                            renderTrees();
+                            renderMappings();
+                            updateStats();
+                        }
+                        resolve(true);
+                    } catch (e) { reject(e); }
+                }, 300);
+            })
+        };
+
+        function openBindingLogsModal() {
+            state.bindingLogsPage = 1;
+            state.bindingLogsUserScrolled = false;
+            state.bindingLogsReachedEnd = false;
+            const modal = document.getElementById('bindingLogsModal');
+            modal.style.display = 'block';
+            loadBindingLogsPage(1);
+            positionBindingLogsPopover();
+            
+            // 添加失焦自动隐藏功能
+            setTimeout(() => {
+                const content = modal.querySelector('.modal-content');
+                if (content) {
+                    content.focus();
+                    content.tabIndex = -1; // 使元素可以获得焦点
+                }
+            }, 100);
+            // 绑定滚动分页加载
+            setTimeout(() => {
+                const body = document.getElementById('bindingLogsBody');
+                if (!body) return;
+                if (!state.bindingLogsScrollBound) {
+                    state.bindingLogsScrollHandler = () => {
+                        const nearBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 16;
+                        const hasMore = state.bindingLogsPage * state.bindingLogsPageSize < state.bindingLogsTotal;
+                        if (nearBottom && hasMore && !state.bindingLogsLoading) {
+                            loadBindingLogsPage(state.bindingLogsPage + 1);
+                        }
+                        const atEnd = !hasMore && (state.bindingLogsTotal > 0);
+                        if (body.scrollTop > 0) state.bindingLogsUserScrolled = true;
+                        if (nearBottom && atEnd) state.bindingLogsReachedEnd = true;
+                        updateBindingLogsEndTip();
+                    };
+                    body.addEventListener('scroll', state.bindingLogsScrollHandler);
+                    state.bindingLogsScrollBound = true;
+                }
+            }, 120);
+            // 点击外部自动隐藏（不影响弹窗内部与确认浮层）
+            if (!state.bindingLogsDocClickHandler) {
+                state.bindingLogsDocClickHandler = (e) => {
+                    const content = document.querySelector('#bindingLogsModal .modal-content');
+                    const confirm = document.querySelector('.confirm-popover');
+                    const isInside = content && content.contains(e.target);
+                    const inConfirm = confirm && confirm.contains(e.target);
+                    if (!isInside && !inConfirm) closeBindingLogsModal();
+                };
+                document.addEventListener('mousedown', state.bindingLogsDocClickHandler, true);
+            }
+        }
+        function closeBindingLogsModal() {
+            const modal = document.getElementById('bindingLogsModal');
+            modal.style.display = 'none';
+            const body = document.getElementById('bindingLogsBody');
+            if (body && state.bindingLogsScrollBound && state.bindingLogsScrollHandler) {
+                body.removeEventListener('scroll', state.bindingLogsScrollHandler);
+                state.bindingLogsScrollBound = false;
+                state.bindingLogsScrollHandler = null;
+            }
+            state.bindingLogsReachedEnd = false;
+            state.bindingLogsUserScrolled = false;
+            if (state.bindingLogsDocClickHandler) {
+                document.removeEventListener('mousedown', state.bindingLogsDocClickHandler, true);
+                state.bindingLogsDocClickHandler = null;
+            }
+        }
+        function loadBindingLogsPage(page) {
+            state.bindingLogsLoading = true; state.bindingLogsError = null;
+            api.fetchBindingLogs(page, state.bindingLogsPageSize)
+                .then(({items, total}) => {
+                    if (page === 1) {
+                        state.bindingLogs = items;
+                    } else {
+                        state.bindingLogs = (state.bindingLogs || []).concat(items);
+                    }
+                    state.bindingLogsTotal = total; state.bindingLogsPage = page;
+                    state.bindingLogsLoading = false;
+                    renderBindingLogs();
+                    const expected = (() => {
+                        let count = 0;
+                        (state.mappings || []).forEach(m => { count += (m.targetIds || []).length; });
+                        return count;
+                    })();
+                    if (expected !== state.bindingLogsTotal) {
+                        api.fetchBindingLogs(1, state.bindingLogsPageSize).then(({items: it2, total: t2}) => {
+                            state.bindingLogs = it2; state.bindingLogsTotal = t2; state.bindingLogsPage = 1; renderBindingLogs();
+                        });
+                    }
+                })
+                .catch(err => {
+                    state.bindingLogsError = String(err);
+                    state.bindingLogsLoading = false;
+                    renderBindingLogs();
+                });
+        }
+        function renderBindingLogs() {
+            const body = document.getElementById('bindingLogsBody');
+            const pag = document.getElementById('bindingLogsPagination');
+            if (!body || !pag) return;
+            if (state.bindingLogsLoading && (state.bindingLogs || []).length === 0) { body.innerHTML = '<div class="empty-state" style="padding:8px;">加载中...</div>'; pag.innerHTML=''; return; }
+            if (state.bindingLogsError) { body.innerHTML = `<div style='display:flex; align-items:center; justify-content:center; height:120px; font-size:14px; color:#999;'>加载失败：${state.bindingLogsError} <button class='btn-small btn-edit' style='margin-left:8px;' onclick='loadBindingLogsPage(${state.bindingLogsPage})'>重试</button></div>`; pag.innerHTML=''; return; }
+            if (state.bindingLogs.length === 0) { body.innerHTML = '<div style="display:flex; align-items:center; justify-content:center; height:120px; font-size:14px; color:#999;">暂无绑定记录</div>'; pag.innerHTML=''; return; }
+            const isLight = (state.ui && state.ui.theme) === 'light';
+            const nameColor = isLight ? '#334155' : '#e2e8f0';
+            const tsColor = isLight ? '#64748b' : '#94a3b8';
+            body.innerHTML = state.bindingLogs.map(log => {
+                const ts = new Date(log.time).toLocaleString();
+                const target = log.targetName ? log.targetName : '未记录';
+                const loading = state.bindingLogsUndoingId === log.id;
+                return `<div class='history-item' style='display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-radius:8px; margin:4px 0;'>
+                    <div>
+                        <div style='color:${nameColor};'>${log.sourceName} → ${target}</div>
+                        <div style='color:${tsColor};'>${ts}</div>
+                    </div>
+                    <button class='btn-small ${loading ? '' : 'btn-secondary'}' ${loading ? 'disabled' : ''} onclick='showUndoConfirm("${log.id}", this)'>${loading ? '撤回中...' : '撤回'}</button>
+                </div>`;
+            }).join('') + "<div id='bindingLogsEndTip' style='display:none; text-align:center; font-size:12px; color:#94a3b8; padding:6px 0;'>已经是最后一条记录</div>";
+            const loaded = (state.bindingLogs || []).length;
+            const total = state.bindingLogsTotal || 0;
+            pag.innerHTML = '';
+            pag.style.display = 'none';
+            const titleEl = document.querySelector('#bindingLogsModal .modal-title');
+            if (titleEl) titleEl.textContent = `绑定记录-共${total}条`;
+            updateBindingLogsEndTip();
+            positionBindingLogsPopover();
+        }
+        function updateBindingLogsEndTip() {
+            const tip = document.getElementById('bindingLogsEndTip');
+            if (!tip) return;
+            // 延后一帧，避免因重绘引起的高度变化造成计算抖动
+            requestAnimationFrame(() => {
+                const body = document.getElementById('bindingLogsBody');
+                if (!body) return;
+                const hasMore = state.bindingLogsPage * state.bindingLogsPageSize < state.bindingLogsTotal;
+                const nearBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 16;
+                if (!hasMore && nearBottom) state.bindingLogsReachedEnd = true;
+                const show = state.bindingLogsReachedEnd && !hasMore && state.bindingLogsUserScrolled && (state.bindingLogsTotal > 0);
+                tip.style.display = show ? 'block' : 'none';
+            });
+        }
+        function positionBindingLogsPopover() {
+            const btn = Array.from(document.querySelectorAll('.toolbar-btn')).find(b => b.textContent.includes('绑定记录'));
+            const modal = document.querySelector('#bindingLogsModal .modal-content');
+            if (!btn || !modal) return;
+            const rect = btn.getBoundingClientRect();
+            const vw = window.innerWidth; const vh = window.innerHeight;
+            const width = Math.min(vw * 0.2, 420);
+            const offset = 10;
+            const right = Math.max(8, vw - rect.right - offset);
+            let bottom = Math.max(8, vh - rect.bottom - offset + 10);
+            modal.style.width = width + 'px';
+            modal.style.right = right + 'px';
+            const h = modal.offsetHeight || 0;
+            if (bottom + h > vh - 8) bottom = Math.max(8, vh - h - 8);
+            modal.style.bottom = bottom + 'px';
+        }
+        function undoBindingLog(logId) {
+            const log = state.bindingLogs.find(l => l.id === logId);
+            if (!log) return;
+            state.bindingLogsUndoingId = logId; renderBindingLogs();
+            api.undoBinding(log)
+                .then(() => {
+                    const key = makeBindingLogKey(log);
+                    if (!state.bindingLogsHiddenKeys.includes(key)) state.bindingLogsHiddenKeys.push(key);
+                    state.bindingLogs = state.bindingLogs.filter(l => l.id !== logId);
+                    state.bindingLogsTotal = Math.max(0, state.bindingLogsTotal - 1);
+                    showNotification('撤回成功', 'success');
+                    loadBindingLogsPage(1);
+                })
+                .catch(() => { showNotification('撤回失败，请重试', 'info'); })
+                .finally(() => { state.bindingLogsUndoingId = null; renderBindingLogs(); });
+            }
+        function toggleHistoryPanel() { }
+        function undoHistory() { }
+        function logEvent(type, detail) { try { console.log('[LOG]', type, new Date().toLocaleString(), detail); } catch (_) {} }
+
+        // ===== 新增功能：可视化映射 =====
+        function toggleVisualMapping(btn) {
+            state.visualMappingEnabled = !state.visualMappingEnabled;
+            btn.classList.toggle('active');
+            
+            const visualArea = document.getElementById('visualMapping');
+            visualArea.style.display = state.visualMappingEnabled ? 'block' : 'none';
+            
+            if (state.visualMappingEnabled) {
+                drawVisualMappings();
+            }
+        }
+
+        function drawVisualMappings() {
+            if (!state.visualMappingEnabled || !state.platformA || !state.platformB) return;
+            
+            const svg = document.getElementById('mappingSvg');
+            svg.innerHTML = '';
+            
+            // 简化的连线绘制（实际应用中需要更复杂的计算）
+            state.mappings.forEach((mapping, index) => {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('class', 'mapping-line');
+                line.setAttribute('x1', '10%');
+                line.setAttribute('y1', `${20 + (index * 30)}%`);
+                line.setAttribute('x2', '90%');
+                line.setAttribute('y2', `${20 + (index * 30)}%`);
+                line.setAttribute('title', `${mapping.sourceName} → ${mapping.targetNames.join(', ')}`);
+                svg.appendChild(line);
+            });
+            
+            if (state.mappings.length === 0) {
+                svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="14">暂无映射关系</text>';
+            }
+        }
+
+        // ===== 新增功能：智能映射 =====
+        function showSmartMapping() {
+            if (!state.platformA || !state.platformB) {
+                alert('请先导入两个平台的数据！');
+                return;
+            }
+            
+            document.getElementById('smartMappingModal').style.display = 'block';
+            updateThresholdDisplay(document.getElementById('similarityThreshold').value);
+            scheduleStatsUpdate();
+        }
+
+        function closeSmartMappingModal() {
+            document.getElementById('smartMappingModal').style.display = 'none';
+        }
+        
+        function updateThresholdDisplay(value) {
+            const input = document.getElementById('similarityThreshold');
+            const display = document.getElementById('thresholdDisplay');
+            const val = parseInt(value, 10);
+            document.getElementById('thresholdValue').textContent = val;
+            if (input && display) {
+                const min = parseInt(input.min || '50', 10);
+                const max = parseInt(input.max || '100', 10);
+                const percent = ((val - min) / (max - min)) * 100;
+                display.style.left = `calc(${percent}% )`;
+                display.style.transform = 'translateX(-50%)';
+            }
+            const ct = document.getElementById('currentThreshold');
+            if (ct) ct.textContent = val;
+        }
+
+        function startSmartMapping() {
+            const threshold = parseInt(document.getElementById('similarityThreshold').value);
+            const results = document.getElementById('smartMappingResults');
+            
+            results.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div>正在分析相似度...</div></div>';
+            
+            setTimeout(() => {
+                const suggestions = findSimilarNodes(threshold);
+                displaySmartSuggestions(suggestions);
+            }, 500);
+        }
+
+        function findSimilarNodes(threshold) {
+            const suggestions = [];
+            const allNodesA = getAllNodes(state.platformA);
+            const allNodesB = getAllNodes(state.platformB);
+            
+            allNodesA.forEach(nodeA => {
+                allNodesB.forEach(nodeB => {
+                    const similarity = calculateSimilarity(nodeA.name, nodeB.name);
+                    if (similarity >= threshold) {
+                        suggestions.push({
+                            source: nodeA,
+                            target: nodeB,
+                            similarity: Math.round(similarity),
+                            isCurrentMapping: state.mappings.some(m => 
+                                m.sourceId === nodeA.id && m.targetIds.includes(nodeB.id)
+                            )
+                        });
+                    }
+                });
+            });
+            
+            return suggestions.sort((a, b) => b.similarity - a.similarity);
+        }
+
+        function getAllNodes(tree) {
+            const nodes = [];
+            const traverse = (node) => {
+                if (node.level > 0) nodes.push(node);
+                if (node.children) node.children.forEach(traverse);
+            };
+            traverse(tree);
+            return nodes;
+        }
+
+        function calculateSimilarity(str1, str2) {
+            // 纯文本相似度计算：基于编辑距离
+            const name1 = str1.toLowerCase().trim();
+            const name2 = str2.toLowerCase().trim();
+            
+            if (name1 === name2) return 100;
+            if (name1.length === 0 || name2.length === 0) return 0;
+            
+            // 使用编辑距离计算相似度
+            const longer = name1.length > name2.length ? name1 : name2;
+            const shorter = name1.length > name2.length ? name2 : name1;
+            const editDistance = levenshteinDistance(longer, shorter);
+            const similarity = Math.round(((longer.length - editDistance) / longer.length) * 100);
+            
+            return similarity;
+        }
+
+        function levenshteinDistance(str1, str2) {
+            const matrix = [];
+            for (let i = 0; i <= str2.length; i++) {
+                matrix[i] = [i];
+            }
+            for (let j = 0; j <= str1.length; j++) {
+                matrix[0][j] = j;
+            }
+            for (let i = 1; i <= str2.length; i++) {
+                for (let j = 1; j <= str1.length; j++) {
+                    if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
+                        );
+                    }
+                }
+            }
+            return matrix[str2.length][str1.length];
+        }
+
+        function displaySmartSuggestions(suggestions) {
+            const results = document.getElementById('smartMappingResults');
+            const selectAllControls = document.getElementById('selectAllControls');
+            const isLight = (state.ui && state.ui.theme) === 'light';
+            const baseBg = isLight ? '#ffffff' : 'rgba(15, 23, 42, 0.4)';
+            const baseBorder = isLight ? '#e2e8f0' : 'rgba(94, 234, 212, 0.1)';
+            const simColor = isLight ? '#0ea5e9' : '#5eead4';
+            const idColor = isLight ? '#64748b' : '#94a3b8';
+            
+            if (suggestions.length === 0) {
+                results.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div>未找到满足条件的相似知识点</div></div>';
+                selectAllControls.style.display = 'none';
+                return;
+            }
+
+            selectAllControls.style.display = 'block';
+            
+            // 更新匹配数量和当前阈值
+            document.getElementById('matchCount').textContent = suggestions.length;
+            document.getElementById('currentThreshold').textContent = document.getElementById('similarityThreshold').value;
+            state.smartSuggestions = suggestions;
+            results.innerHTML = `<div id="smartSearchBar" style="position: sticky; top: 0; background: transparent; padding: 6px 0; z-index: 1;"><input id="smartSearchInput" class="search-box" placeholder="搜索匹配项名称或ID" aria-label="搜索匹配项名称或ID"></div><div id="smartListWrap"></div>`;
+
+            function renderList(data) {
+                const wrap = document.getElementById('smartListWrap');
+                if (!wrap) return;
+                wrap.innerHTML = `
+                ${data.map((s) => `
+                    <div style="padding: 10px; margin-bottom: 8px; background: ${s.isCurrentMapping ? (isLight ? 'rgba(52, 211, 153, 0.15)' : 'rgba(52, 211, 153, 0.1)') : baseBg}; 
+                                border: 1px solid ${s.isCurrentMapping ? '#34d399' : baseBorder}; 
+                                border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <strong>${s.source.name}</strong> → <strong style="color: #8b5cf6;">${s.target.name}</strong>
+                            <span style="color: ${simColor}; margin-left: 10px; font-size: 12px;">相似度: ${s.similarity}%</span>
+                            <div style="font-size:12px; color:${idColor}; margin-top:4px;">ID: ${s.source.id} → ${s.target.id}</div>
+                            ${s.isCurrentMapping ? '<span style="color: #34d399; margin-left: 10px;">已映射</span>' : ''}
+                        </div>
+                        <input type="checkbox" class="smart-selection" data-source="${s.source.id}" data-target="${s.target.id}" 
+                               ${s.isCurrentMapping ? 'checked' : ''} ${s.isCurrentMapping ? 'disabled' : ''} 
+                               onchange="updateSelectAllState()" style="width: 18px; height: 18px;">
+                    </div>
+                `).join('')}
+            `;
+                updateSelectAllState();
+            }
+
+            function applySmartSearchInternal() {
+                const input = document.getElementById('smartSearchInput');
+                const q = (input && input.value || '').trim().toLowerCase();
+                const data = !q ? state.smartSuggestions : state.smartSuggestions.filter(s => {
+                    const fields = [String(s.source.name), String(s.source.id), String(s.target.name), String(s.target.id)].map(v => v.toLowerCase());
+                    return fields.some(v => v.includes(q));
+                });
+                document.getElementById('matchCount').textContent = data.length;
+                selectAllControls.style.display = data.length > 0 ? 'block' : 'none';
+                renderList(data);
+            }
+
+            const input = document.getElementById('smartSearchInput');
+            if (input) input.addEventListener('input', debounce(applySmartSearchInternal, 150));
+            applySmartSearchInternal();
+        }
+
+        function applySmartMappings() {
+            const checkboxes = document.querySelectorAll('.smart-selection:checked');
+            let appliedCount = 0;
+            
+            checkboxes.forEach(checkbox => {
+                const sourceId = checkbox.dataset.source;
+                const targetId = checkbox.dataset.target;
+                
+                const source = findNodeById(sourceId, 'A');
+                const target = findNodeById(targetId, 'B');
+                
+                if (source && target) {
+                    // 检查是否已存在
+                    const existing = state.mappings.find(m => 
+                        m.sourceId === sourceId && m.targetIds.includes(targetId)
+                    );
+                    
+                    if (!existing) {
+                        state.mappings.push({
+                            id: 'map-' + Date.now() + '-' + Math.random(),
+                            sourceId: sourceId,
+                            sourceName: source.name,
+                            targetIds: [targetId],
+                            targetNames: [target.name],
+                            createTime: Date.now(),
+                            updateTime: Date.now(),
+                            status: 'active',
+                            creator: 'smart-mapping',
+                            updateCount: 0
+                        });
+                        appliedCount++;
+                    }
+                }
+            });
+            
+            if (appliedCount > 0) {
+                saveToLocalStorage();
+                renderTrees();
+                renderMappings();
+                updateStats();
+                addToHistory('智能批量映射', `应用了${appliedCount}个映射`, '');
+                showToast(`成功应用 ${appliedCount} 个智能映射！`, 'success');
+            } else {
+                showToast('没有选中的映射需要应用', 'error');
+            }
+            
+            closeSmartMappingModal();
+        }
+
+        // ===== 新增功能：映射模板 =====
+        function saveTemplate() {
+            if (state.mappings.length === 0) {
+                alert('当前没有映射关系可保存为模板！');
+                return;
+            }
+            
+            const name = prompt('请输入模板名称：', `模板_${new Date().toLocaleDateString()}`);
+            if (!name) return;
+            
+            const template = {
+                id: 'tpl-' + Date.now(),
+                name: name,
+                mappings: state.mappings.map(m => ({
+                    sourceName: m.sourceName,
+                    targetNames: [...m.targetNames]
+                })),
+                createTime: Date.now(),
+                platformA: state.platformA ? state.platformA.name : '未命名',
+                platformB: state.platformB ? state.platformB.name : '未命名'
+            };
+            
+            state.templates.push(template);
+            saveToLocalStorage();
+            alert(`✅ 模板 "${name}" 已保存！`);
+        }
+
+        function loadTemplate() {
+            if (state.templates.length === 0) {
+                alert('没有可用的模板！');
+                return;
+            }
+            
+            const templateNames = state.templates.map(t => t.name).join('\n');
+            const selected = prompt(`请选择模板（输入编号或名称）：\n\n${state.templates.map((t, i) => `${i + 1}. ${t.name}`).join('\n')}`);
+            
+            if (!selected) return;
+            
+            let template;
+            const index = parseInt(selected);
+            if (!isNaN(index) && index > 0 && index <= state.templates.length) {
+                template = state.templates[index - 1];
+            } else {
+                template = state.templates.find(t => t.name === selected);
+            }
+            
+            if (!template) {
+                alert('未找到指定的模板！');
+                return;
+            }
+            
+            if (!confirm(`确定要加载模板 "${template.name}" 吗？这将不会自动创建映射，而是显示模板中的映射关系供参考。`)) return;
+            
+            // 显示模板映射
+            const results = document.getElementById('smartMappingResults');
+            results.innerHTML = `
+                <div style="margin-bottom: 10px; color: #5eead4;">
+                    模板 "${template.name}" 包含 ${template.mappings.length} 个映射关系：
+                </div>
+                ${template.mappings.map((m, i) => `
+                    <div style="padding: 10px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.4); 
+                                border: 1px solid rgba(94, 234, 212, 0.1); border-radius: 8px;">
+                        <strong>${m.sourceName}</strong> → <strong style="color: #8b5cf6;">${m.targetNames.join(', ')}</strong>
+                    </div>
+                `).join('')}
+            `;
+            document.getElementById('smartMappingModal').style.display = 'block';
+        }
+
+        function showMappingDetail(mappingId) {
+            const mapping = state.mappings.find(m => m.id === mappingId);
+            if (!mapping) return;
+            
+            const content = document.getElementById('mappingDetailContent');
+            content.innerHTML = `
+                <div style="padding: 15px;">
+                    <div style="margin-bottom: 15px; padding: 10px; background: rgba(15, 23, 42, 0.5); border-radius: 8px;">
+                        <strong style="color: #5eead4;">源知识点:</strong> ${mapping.sourceName}
+                    </div>
+                    <div style="margin-bottom: 15px; padding: 10px; background: rgba(15, 23, 42, 0.5); border-radius: 8px;">
+                        <strong style="color: #8b5cf6;">目标知识点:</strong><br>
+                        ${mapping.targetNames.map(name => `• ${name}`).join('<br>')}
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px;">
+                        <div><strong>创建时间:</strong><br>${new Date(mapping.createTime).toLocaleString()}</div>
+                        <div><strong>更新时间:</strong><br>${new Date(mapping.updateTime).toLocaleString()}</div>
+                        <div><strong>更新次数:</strong><br>${mapping.updateCount || 0}</div>
+                        <div><strong>状态:</strong><br>${mapping.status === 'active' ? '活跃' : '已废弃'}</div>
+                        <div><strong>创建者:</strong><br>${mapping.creator || '未知'}</div>
+                        <div><strong>映射ID:</strong><br><code style="font-size: 11px;">${mapping.id}</code></div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('mappingDetailModal').style.display = 'block';
+        }
+
+        function closeMappingDetailModal() {
+            document.getElementById('mappingDetailModal').style.display = 'none';
+        }
+
+        function showUnmapped() {
+            if (!state.platformA || !state.platformB) {
+                alert('请先导入两个平台的数据！');
+                return;
+            }
+            const stats = computeUnmappedStats();
+            const unmappedA = stats.unmappedA;
+            const unmappedB = stats.unmappedB;
+            
+            const results = document.getElementById('smartMappingResults');
+            results.innerHTML = `
+                <div style="color: #5eead4; margin-bottom: 10px;">
+                    <h3>未映射节点统计</h3>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <h4 style="color: #f87171;">平台A未映射 (${unmappedA.length}个)</h4>
+                        ${unmappedA.map(node => `<div style="padding: 5px; font-size: 13px;">• ${node.name}</div>`).join('')}}
+                    </div>
+                    <div>
+                        <h4 style="color: #f87171;">平台B未映射 (${unmappedB.length}个)</h4>
+                        ${unmappedB.map(node => `<div style="padding: 5px; font-size: 13px;">• ${node.name}</div>`).join('')}}
+                    </div>
+                </div>
+            `;
+            document.getElementById('smartMappingModal').style.display = 'block';
+        }
+
+        function getUnmappedNodes(tree, platform) {
+            const unmapped = [];
+            const traverse = (node) => {
+                if (node.level > 0) {
+                    const isMapped = state.mappings.some(m => 
+                        platform === 'A' ? m.sourceId === node.id : m.targetIds.includes(node.id)
+                    );
+                    if (!isMapped) unmapped.push(node);
+                }
+                if (node.children) node.children.forEach(traverse);
+            };
+            traverse(tree);
+            return unmapped;
+        }
+
+        function computeUnmappedStats() {
+            const leafA = !!state.mappingSettings.leafOnlyA;
+            const leafB = !!state.mappingSettings.leafOnlyB;
+            const mappableAIds = getMappableIds(state.platformA, leafA);
+            const mappableBIds = getMappableIds(state.platformB, leafB);
+            const mappedASourceIds = new Set(state.mappings.map(m => m.sourceId));
+            const mappedBTargetIds = new Set(state.mappings.flatMap(m => Array.isArray(m.targetIds) ? m.targetIds : []));
+            const unmappedA = getUnmappedNodesFiltered(state.platformA, leafA, 'A').filter(n => mappableAIds.includes(n.id) && !mappedASourceIds.has(n.id));
+            const unmappedB = getUnmappedNodesFiltered(state.platformB, leafB, 'B').filter(n => mappableBIds.includes(n.id) && !mappedBTargetIds.has(n.id));
+            return { unmappedA, unmappedB };
+        }
+
+        function getUnmappedNodesFiltered(tree, leafOnly, platform) {
+            const out = [];
+            const stack = [tree];
+            while (stack.length) {
+                const n = stack.pop();
+                if (n.level > 0) {
+                    const isLeaf = !n.children || n.children.length === 0;
+                    if (!leafOnly || isLeaf) {
+                        const mapped = state.mappings.some(m => platform === 'A' ? m.sourceId === n.id : (Array.isArray(m.targetIds) && m.targetIds.includes(n.id)));
+                        if (!mapped) out.push(n);
+                    }
+                }
+                if (n.children) for (const c of n.children) stack.push(c);
+            }
+            return out;
+        }
+
+        // ===== 辅助功能 =====
+        function showNotification(message, type = 'info') {
+            const isLight = (state.ui && state.ui.theme) === 'light';
+            const palette = {
+                info: isLight ? { bg: '#ffffff', fg: '#0f172a', border: '#e2e8f0', shadow: '0 4px 12px rgba(15,23,42,0.12)' } : { bg: 'rgba(15,23,42,0.9)', fg: '#e2e8f0', border: 'rgba(255,255,255,0.1)', shadow: '0 4px 12px rgba(0,0,0,0.3)' },
+                success: { bg: 'rgba(52, 211, 153, 0.9)', fg: '#0f172a', border: 'rgba(52, 211, 153, 0.35)', shadow: isLight ? '0 4px 12px rgba(15,23,42,0.12)' : '0 4px 12px rgba(0,0,0,0.3)' }
+            };
+            const theme = palette[type] || palette.info;
+            const notification = document.createElement('div');
+            notification.style.cssText = `position:fixed; top:20px; right:20px; padding:15px 20px; background:${theme.bg}; color:${theme.fg}; border:1px solid ${theme.border}; border-radius:8px; box-shadow:${theme.shadow}; z-index:2000; font-size:14px; animation: slideIn 0.3s ease;`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => { try { notification.remove(); } catch(_){} }, 3000);
+        }
+
+        // 添加滑入动画
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(6px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // 搜索功能
+        function debounce(fn, delay) { let t; return function(...args){ const ctx=this; clearTimeout(t); t=setTimeout(()=>fn.apply(ctx,args), delay); } }
+        function searchModeParser(q) {
+            const s = q.trim();
+            if (!s) return { mode: 'fuzzy', term: '' };
+            if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) return { mode: 'exact_name', term: s.slice(1,-1) };
+            if (s.startsWith('id:')) return { mode: 'exact_id', term: s.slice(3) };
+            return { mode: 'fuzzy', term: s };
+        }
+        function applySearch(side, value) {
+            const { mode, term } = searchModeParser(sanitizeQuery(value));
+            state.searchContext = { mode, term };
+            addSearchHistory(side, term);
+            renderSearchSuggestions(side);
+            const container = document.getElementById(side === 'A' ? 'treeA' : 'treeB');
+            const tree = side === 'A' ? state.platformA : state.platformB;
+            if (!tree) return;
+            const cacheKey = side + '|' + mode + '|' + term + '|' + state.searchLimit;
+            let html = state.searchCache[cacheKey];
+            // 始终计算匹配数量，确保提示与实际一致
+            const allMatchedIds = collectMatches(tree, term, mode);
+            const matchesCount = allMatchedIds.length;
+            if (!html) {
+                const limitedIds = new Set(allMatchedIds.slice(0, state.searchLimit));
+                console.time('search_'+side);
+                html = renderTreeWithMode(tree, side, term, mode, limitedIds);
+                console.timeEnd('search_'+side);
+                state.searchCache[cacheKey] = html;
+            }
+            container.innerHTML = html;
+            updateSearchInfo(side, term, matchesCount);
+            if (term && matchesCount === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div>未找到结果</div></div>';
+            }
+        }
+        function updateSearchInfo(side, term, count) {
+            const infoEl = document.getElementById(side === 'A' ? 'searchInfoA' : 'searchInfoB');
+            if (!infoEl) return;
+            if (!term) { infoEl.textContent = ''; return; }
+            if (count === 0) {
+                infoEl.textContent = '未找到结果';
+            } else if (count > state.searchLimit) {
+                infoEl.innerHTML = `匹配到 ${count} 条结果，已显示前 ${state.searchLimit} 条。<button class="btn-small" onclick="showMoreSearch('${side}')">显示更多相似结果</button>`;
+            } else {
+                infoEl.textContent = `匹配到 ${count} 条结果`;
+            }
+        }
+        function showMoreSearch(side) { state.searchLimit = Number.MAX_SAFE_INTEGER; const input = document.getElementById(side === 'A' ? 'searchA' : 'searchB'); applySearch(side, input ? input.value : ''); }
+        document.getElementById('searchA')?.addEventListener('input', debounce((e)=>{ try { applySearch('A', e.target.value); } catch(err){ console.warn('搜索A错误', err); } }, 150));
+        document.getElementById('searchB')?.addEventListener('input', debounce((e)=>{ try { applySearch('B', e.target.value); } catch(err){ console.warn('搜索B错误', err); } }, 150));
+
+        function updateClearVisibility(side) {
+            const input = document.getElementById(side === 'A' ? 'searchA' : 'searchB');
+            const btn = document.getElementById(side === 'A' ? 'clearSearchA' : 'clearSearchB');
+            if (!input || !btn) return;
+            if (input.value && input.value.length > 0) btn.classList.add('show'); else btn.classList.remove('show');
+        }
+        function clearSearch(side) {
+            const input = document.getElementById(side === 'A' ? 'searchA' : 'searchB');
+            if (!input) return;
+            input.value = '';
+            applySearch(side, '');
+            updateClearVisibility(side);
+            input.focus();
+        }
+
+        // 轻量测试：验证ID匹配准确性与高亮
+        function runSearchTests() {
+            const sample = { id: 'root', name: 'ROOT', level: 0, children: [
+                { id: 'A1', name: '节点Alpha', level: 1 },
+                { id: 'a1', name: '节点alpha', level: 1 },
+                { id: 'B-2_3', name: '节点Beta', level: 1 }
+            ]};
+            const exactIdUpper = hasMatchWithMode(sample, 'A1', 'exact_id');
+            const exactIdLower = hasMatchWithMode(sample, 'a1', 'exact_id');
+            const exactIdSymbol = hasMatchWithMode(sample, 'B-2_3', 'exact_id');
+            console.assert(exactIdUpper === true, '测试失败: 精确ID A1');
+            console.assert(exactIdLower === true, '测试失败: 精确ID a1');
+            console.assert(exactIdSymbol === true, '测试失败: 精确ID 带符号');
+            const fuzzyIdShouldExact = hasMatchWithMode(sample, 'A1', 'fuzzy');
+            console.assert(fuzzyIdShouldExact === true, '测试失败: 模糊模式下ID应精确等于');
+        }
+        function hasMatchWithMode(tree, q, mode) {
+            const termRaw = (q || '').trim();
+            const termLower = termRaw.toLowerCase();
+            const minLen = 2;
+            let found = false;
+            const walk = (n) => {
+                if (n.level > 0) {
+                    const nameLower = String(n.name).toLowerCase();
+                    const idStr = String(n.id);
+                    const idLower = idStr.toLowerCase();
+                    let hit = false;
+                    if (!termRaw) hit = true;
+                    else if (mode === 'exact_name') hit = nameLower === termLower;
+                    else if (mode === 'exact_id') hit = idStr === termRaw;
+                    else hit = nameLower.includes(termLower) || idStr === termRaw || (termRaw.length >= minLen && idLower.includes(termLower));
+                    if (hit) { found = true; return; }
+                }
+                if (n.children) n.children.forEach(walk);
+            };
+            walk(tree);
+            return found;
+        }
+        function sanitizeQuery(q) { return (q || '').replace(/[\r\n\t]/g, ' ').trim().slice(0, 64); }
+        function addSearchHistory(side, q) {
+            if (!q) return;
+            state[`searchHistory${side}`] = state[`searchHistory${side}`] || [];
+            const arr = state[`searchHistory${side}`];
+            if (arr[0] === q) return;
+            const idx = arr.indexOf(q);
+            if (idx >= 0) arr.splice(idx, 1);
+            arr.unshift(q);
+            while (arr.length > 10) arr.pop();
+        }
+        function renderSearchSuggestions(side) {
+            const arr = state[`searchHistory${side}`] || [];
+            const listEl = document.getElementById(side === 'A' ? 'searchAList' : 'searchBList');
+            if (!listEl) return;
+            listEl.innerHTML = arr.map(item => `<option value="${item}"></option>`).join('');
+        }
+
+        // 模态框关闭
+        window.onclick = function(event) {
+            const modals = ['importModal', 'smartMappingModal', 'mappingDetailModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+            const panel = document.getElementById('historyPanel');
+            const toggle = document.getElementById('toggleHistory');
+            if (panel && panel.style.display === 'block') {
+                if (!panel.contains(event.target) && event.target !== toggle) {
+                    state.historyMinimized = true;
+                    updateHistoryPanel();
+                }
+            }
+        }
+
+        // 相似度滑块
+        document.getElementById('similarityThreshold')?.addEventListener('input', (e) => {
+            document.getElementById('thresholdValue').textContent = e.target.value;
+        });
+
+        // 初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            initTitles();
+            state.ui = state.ui || {};
+            if (!state.ui.theme) state.ui.theme = 'dark';
+            applyTheme(state.ui.theme);
+            
+            // 如果没有本地数据，加载示例
+            if (!state.platformA || !state.platformB) {
+                setTimeout(() => {
+                    showNotification('提示：您可以导入数据或点击"加载示例"查看演示', 'info');
+                }, 1000);
+            }
+            setTimeout(runDisplayTests, 0);
+            on('mapping-settings-changed', () => scheduleStatsUpdate());
+            on('mapping-settings-changed', () => refreshUnmappedIfOpen());
+            on('mappable-counts-updated', () => scheduleStatsUpdate());
+            on('mappable-counts-updated', () => refreshUnmappedIfOpen());
+            on('mapping-settings-opened', () => updateMappableCounts());
+            updateClearVisibility('A');
+            updateClearVisibility('B');
+            document.getElementById('searchA')?.addEventListener('input', ()=>updateClearVisibility('A'));
+            document.getElementById('searchB')?.addEventListener('input', ()=>updateClearVisibility('B'));
+            runIconButtonTests();
+        });
+
+        function refreshUnmappedIfOpen() {
+            const modal = document.getElementById('smartMappingModal');
+            if (modal && modal.style.display === 'block') {
+                showUnmapped();
+            }
+        }
+
+        function runIconButtonTests() {
+            try {
+                const theme = document.getElementById('themeBtn');
+                if (!theme) return;
+                if (!theme.querySelector('svg')) updateThemeButton();
+            } catch (e) {}
+        }
+
+        function showMappingSettingsModal() {
+            const m = document.getElementById('mappingSettingsModal');
+            const t = state.mappingSettings.type;
+            document.querySelectorAll('#mappingSettingsModal input[name="mapType"]').forEach(r => { r.checked = r.value === t; });
+            document.getElementById('leafOnlyA').checked = !!state.mappingSettings.leafOnlyA;
+            document.getElementById('leafOnlyB').checked = !!state.mappingSettings.leafOnlyB;
+            m.style.display = 'block';
+            updateMappableCounts();
+            emit('mapping-settings-opened', {});
+        }
+
+        function closeMappingSettingsModal() {
+            const m = document.getElementById('mappingSettingsModal');
+            m.style.display = 'none';
+        }
+
+        function saveMappingSettings() {
+            const typeEl = document.querySelector('#mappingSettingsModal input[name="mapType"]:checked');
+            const type = typeEl ? typeEl.value : 'ONE_TO_ONE';
+            const leafA = document.getElementById('leafOnlyA').checked;
+            const leafB = document.getElementById('leafOnlyB').checked;
+            state.mappingSettings = { type, leafOnlyA: leafA, leafOnlyB: leafB };
+            saveToLocalStorage();
+            closeMappingSettingsModal();
+            showToast('映射设置已保存', 'success');
+            emit('mapping-settings-changed', { settings: state.mappingSettings });
+            scheduleStatsUpdate();
+            updateSmartMappingStatsInternal(
+                countMappableNodes(state.platformA, leafA),
+                getMappableIds(state.platformA, leafA).filter(id => new Set(state.mappings.map(m => m.sourceId)).has(id)).length,
+                countMappableNodes(state.platformB, leafB),
+                getMappableIds(state.platformB, leafB).filter(id => new Set(state.mappings.flatMap(m => m.targetIds||[])).has(id)).length
+            );
+        }
+
+        function countMappableNodes(tree, leafOnly) {
+            if (!tree) return 0;
+            let count = 0;
+            const stack = [tree];
+            while (stack.length) {
+                const n = stack.pop();
+                if (n.level > 0) {
+                    if (leafOnly) {
+                        const isLeaf = !n.children || n.children.length === 0;
+                        if (isLeaf) count++;
+                    } else {
+                        count++;
+                    }
+                }
+                if (n.children) for (const c of n.children) stack.push(c);
+            }
+            return count;
+        }
+
+        function getMappableIds(tree, leafOnly) {
+            const ids = [];
+            if (!tree) return ids;
+            const stack = [tree];
+            while (stack.length) {
+                const n = stack.pop();
+                if (n.level > 0) {
+                    if (leafOnly) {
+                        const isLeaf = !n.children || n.children.length === 0;
+                        if (isLeaf) ids.push(n.id);
+                    } else {
+                        ids.push(n.id);
+                    }
+                }
+                if (n.children) for (const c of n.children) stack.push(c);
+            }
+            return ids;
+        }
+
+        function updateMappableCounts() {
+            const leafA = document.getElementById('leafOnlyA').checked;
+            const leafB = document.getElementById('leafOnlyB').checked;
+            const a = countMappableNodes(state.platformA, leafA);
+            const b = countMappableNodes(state.platformB, leafB);
+            const ca = document.getElementById('mappableCountA');
+            const cb = document.getElementById('mappableCountB');
+            if (ca) ca.textContent = String(a);
+            if (cb) cb.textContent = String(b);
+            emit('mappable-counts-updated', { a, b });
+            scheduleStatsUpdate();
+        }
+        function runDisplayTests() {
+            const selectAnyA = state.platformA && state.platformA.children && state.platformA.children[0];
+            if (selectAnyA) {
+                state.selectedA = selectAnyA;
+                renderTrees();
+                const highlightedA = document.querySelectorAll('#treeA .node-content.selected-a').length;
+                const mappedA = document.querySelectorAll('#treeA .node-content.mapped').length;
+                console.log('TEST:selectedAOnly', highlightedA === 1);
+                console.log('TEST:noMappedHighlightOnA', mappedA === 0);
+                const highlightedB = document.querySelectorAll('#treeB .node-content.selected-b').length;
+                const anyMappedB = document.querySelectorAll('#treeB .node-content.mapped').length;
+                console.log('TEST:onlyBoundBHighlighted', highlightedB >= 0 && anyMappedB === 0);
+            }
+        }
+    </script>
+</body>
+</html>
