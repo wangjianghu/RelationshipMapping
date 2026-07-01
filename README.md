@@ -8,7 +8,7 @@
 - 数据导入：支持 JSON/CSV 文件上传或粘贴，并支持层级路径型 Excel(`.xlsx/.xls`)
 - 智能映射：基于编辑距离的相似度分析、批量勾选应用
 - 未映射统计：与“可映射范围（叶子/全部）”设置实时联动
-- 导出映射：JSON/CSV 两种格式
+- 导出映射：JSON/CSV/Excel 三种格式
 - 绑定记录：分页查看、支持撤回
 <img width="3284" height="2010" alt="image" src="https://github.com/user-attachments/assets/b334c114-442f-456e-95d1-6945847380cb" />
 
@@ -59,7 +59,7 @@
   - 与“可映射范围（仅叶子/全部）”设置实时关联
   - 计算与刷新：`/js/script.js:2435-2524`、`/js/script.js:2728-2733`
 - 导出映射
-  - 顶部“导出映射”，选择 JSON/CSV；`/js/script.js:1487-1647`
+  - 顶部“导出映射”，选择 JSON/CSV/Excel；`/js/script.js:1487-1676`
 - 绑定记录
   - 底栏“绑定记录”，分页查看；支持撤回：`/js/script.js:1892-2062`
 

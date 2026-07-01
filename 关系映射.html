@@ -2107,14 +2107,51 @@
             return state.mappings.some(m => m.sourceId !== aId && Array.isArray(m.targetIds) && m.targetIds.includes(bId));
         }
 
-        function attemptBind(aNode, bNode) {
+        function getBindFailureReasonText(reason) {
+            const reasonMap = {
+                leaf_only_a: 'A平台仅允许叶子节点映射',
+                leaf_only_b: 'B平台仅允许叶子节点映射',
+                b_used: '该B节点已绑定到其他A节点',
+                duplicate: '重复绑定',
+                invalid_node: '节点无效或不存在'
+            };
+            return reasonMap[reason] || '未知原因';
+        }
+
+        function buildBindSummaryToast(results) {
+            const safeResults = Array.isArray(results) ? results : [];
+            const successCount = safeResults.filter(result => result && result.success).length;
+            const failedResults = safeResults.filter(result => !result || !result.success);
+            const failedCount = failedResults.length;
+            if (failedCount === 0) return `成功 ${successCount}，失败 0`;
+
+            const reasonCounts = new Map();
+            failedResults.forEach(result => {
+                const text = getBindFailureReasonText(result && result.reason);
+                reasonCounts.set(text, (reasonCounts.get(text) || 0) + 1);
+            });
+            const reasonText = Array.from(reasonCounts.entries()).map(([text, count]) => `${text}（${count}项）`).join('，');
+            return `成功 ${successCount}，失败 ${failedCount}；失败原因：${reasonText}`;
+        }
+
+        function attemptBind(aNode, bNode, options = {}) {
+            const { silent = false } = options;
+            const fail = (reason, message) => {
+                if (!silent && message) showToast(message, 'error');
+                return { success: false, reason };
+            };
+
             const settings = state.mappingSettings;
-            if (settings.leafOnlyA && !isLeafNode(aNode)) { showToast('A平台仅允许叶子节点映射', 'error'); return; }
-            if (settings.leafOnlyB && !isLeafNode(bNode)) { showToast('B平台仅允许叶子节点映射', 'error'); return; }
-            if ((settings.type === 'ONE_TO_ONE' || settings.type === 'ONE_TO_MANY') && isBUsedByOtherA(bNode.id, aNode.id)) { showToast('该B节点已绑定到其他A节点', 'error'); return; }
+            if (!aNode || !bNode) return fail('invalid_node');
+            if (settings.leafOnlyA && !isLeafNode(aNode)) return fail('leaf_only_a', 'A平台仅允许叶子节点映射');
+            if (settings.leafOnlyB && !isLeafNode(bNode)) return fail('leaf_only_b', 'B平台仅允许叶子节点映射');
+            if ((settings.type === 'ONE_TO_ONE' || settings.type === 'ONE_TO_MANY') && isBUsedByOtherA(bNode.id, aNode.id)) {
+                return fail('b_used', '该B节点已绑定到其他A节点');
+            }
 
             const existing = state.mappings.find(m => m.sourceId === aNode.id);
             const now = Date.now();
+            let reason = 'created';
             if (!existing) {
                 state.mappings.push({ id: 'map-' + now, sourceId: aNode.id, sourceName: aNode.name, targetIds: [bNode.id], targetNames: [bNode.name], targetTimes: [now], createTime: now, updateTime: now, status: 'active', creator: 'admin', updateCount: 0 });
             
@@ -2125,6 +2162,7 @@
                     existing.targetNames = [bNode.name];
                     existing.targetTimes = [now];
                     existing.updateTime = now;
+                    reason = 'updated';
                     
                     refreshBindingLogsIfOpen();
                 } else {
@@ -2134,8 +2172,11 @@
                         if (!Array.isArray(existing.targetTimes)) existing.targetTimes = [];
                         existing.targetTimes.push(now);
                         existing.updateTime = now;
+                        reason = 'appended';
                         
                         refreshBindingLogsIfOpen();
+                    } else {
+                        return fail('duplicate');
                     }
                 }
             }
@@ -2143,16 +2184,17 @@
             renderMappings();
             updateStats();
             saveToLocalStorage();
+            return { success: true, reason };
         }
 
         function createMapping() {
             if (!state.selectedA || !state.selectedB) return;
-            attemptBind(state.selectedA, state.selectedB);
-            clearSelection();
-            renderTrees();
-            renderMappings();
-            updateStats();
-            saveToLocalStorage();
+            const result = attemptBind(state.selectedA, state.selectedB);
+            if (result && result.success) {
+                clearSelection();
+                renderTrees();
+                renderMappings();
+            }
         }
 
         function clearSelection() {
@@ -2553,17 +2595,68 @@
             pop.style.borderRadius = '14px';
             pop.style.padding = '16px';
             pop.style.zIndex = '3000';
-            pop.style.minWidth = '220px';
+            pop.style.width = 'min(860px, calc(100vw - 24px))';
+            pop.style.maxWidth = '860px';
+            pop.style.maxHeight = 'calc(100vh - 24px)';
+            pop.style.height = `${Math.min(640, Math.max(360, window.innerHeight - 24))}px`;
+            pop.style.display = 'flex';
+            pop.style.flexDirection = 'column';
+            pop.style.overflow = 'hidden';
             pop.style.animation = 'fadeIn 0.18s ease';
             state.exportFormat = 'json';
             state.exportLoading = false;
+            const buildOptionButton = (id, fmt, label, minWidth) => `
+                <button id="${id}" class="btn-small btn-secondary" onclick="setExportFormat('${fmt}', this)" style="min-width:${minWidth}; text-align:center; padding:8px 16px; border-radius:10px; background:#8C9CB2; color:#FFFFFF; font-weight:600; border:none;">${label}</button>
+            `;
+            const buildGroup = (groupId, title, desc, buttons) => `
+                <div id="${groupId}" style="padding:12px; border-radius:12px; background:${isLight ? '#F8FAFC' : 'rgba(15, 23, 42, 0.46)'}; border:${isLight ? '1px solid #E2E8F0' : '1px solid rgba(148, 163, 184, 0.18)'};">
+                    <div style="display:flex; gap:8px 12px; flex-wrap:wrap; align-items:center;">
+                        <div style="font-size:14px; font-weight:600; color:${isLight ? '#0f172a' : '#FFFFFF'}; white-space:nowrap;">${title}</div>
+                        <div style="font-size:12px; color:${isLight ? '#64748B' : '#94A3B8'}; flex:1 1 260px; min-width:180px;">${desc}</div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                        ${buttons}
+                    </div>
+                </div>
+            `;
             pop.innerHTML = `
                 <div style="font-size:16px; color:${isLight ? '#0f172a' : '#FFFFFF'}; margin-bottom:12px; font-weight:600;">选择导出格式</div>
-                <div id="exportOptions" style="display:flex; gap:12px; justify-content:center; align-items:center; margin-bottom:16px;">
-                    <button id="opt-json" class="btn-small" onclick="setExportFormat('json', this)" style="min-width:80px; text-align:center; padding:8px 16px; border-radius:10px; background:linear-gradient(135deg, #4F8EEA, #6AA5F5); color:#FFFFFF; font-weight:600; border:none; box-shadow:0 2px 4px rgba(79, 142, 234, 0.3);">JSON格式</button>
-                    <button id="opt-csv" class="btn-small btn-secondary" onclick="setExportFormat('csv', this)" style="min-width:80px; text-align:center; padding:8px 16px; border-radius:10px; background:#8C9CB2; color:#FFFFFF; font-weight:600; border:none;">CSV格式</button>
+                <div id="exportOptions" style="display:grid; gap:12px;">
+                    ${buildGroup(
+                        'group-original-view',
+                        '原始关系导出',
+                        '保留现有拍平关系格式，适合逐条关系核对和继续处理。',
+                        [
+                            buildOptionButton('opt-json', 'json', 'JSON', '88px'),
+                            buildOptionButton('opt-csv', 'csv', 'CSV', '88px'),
+                            buildOptionButton('opt-xlsx', 'xlsx', 'Excel', '88px')
+                        ].join('')
+                    )}
+                    ${buildGroup(
+                        'group-source-view',
+                        'A 主视角导出',
+                        '每个 A 节点仅展示一行，多个 B 节点信息使用英文逗号分隔。',
+                        [
+                            buildOptionButton('opt-source-csv', 'source_csv', 'CSV', '100px'),
+                            buildOptionButton('opt-source-xlsx', 'source_xlsx', 'Excel', '100px')
+                        ].join('')
+                    )}
+                    ${buildGroup(
+                        'group-target-view',
+                        'B 主视角导出',
+                        '每个 B 节点仅展示一行，多个 A 节点信息使用英文逗号分隔。',
+                        [
+                            buildOptionButton('opt-target-csv', 'target_csv', 'CSV', '100px'),
+                            buildOptionButton('opt-target-xlsx', 'target_xlsx', 'Excel', '100px')
+                        ].join('')
+                    )}
                 </div>
-                <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <div id="export-preview-panel" style="padding:12px; border-radius:12px; background:${isLight ? '#F8FAFC' : 'rgba(15, 23, 42, 0.46)'}; border:${isLight ? '1px solid #E2E8F0' : '1px solid rgba(148, 163, 184, 0.18)'}; margin-top:12px; margin-bottom:16px; min-height:0; flex:1 1 auto; overflow:hidden; display:flex; flex-direction:column;">
+                    <div style="font-size:14px; font-weight:600; color:${isLight ? '#0f172a' : '#FFFFFF'};">示例数据预览</div>
+                    <div id="export-preview-hint" style="margin-top:6px; font-size:12px; color:${isLight ? '#64748B' : '#94A3B8'};"></div>
+                    <div id="export-preview-body" style="margin-top:10px; min-height:0; flex:1 1 auto; overflow:hidden;"></div>
+                </div>
+                <div style="display:flex; gap:8px; justify-content:flex-end; flex-shrink:0; margin-top:auto;">
                     <button id="export-cancel" class="btn-small" onclick="this.closest('.confirm-popover').remove()" style="border-radius:8px; background:#FFFFFF; color:#1E262E; padding:6px 16px; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.1);">取消</button>
                     <button id="export-confirm" class="btn-small btn-delete" onclick="confirmExport()" style="border-radius:8px; background:#E64A43; color:#FFFFFF; padding:6px 16px; font-weight:600; box-shadow:0 1px 3px rgba(230, 74, 67, 0.3);">确定</button>
                 </div>
@@ -2572,11 +2665,12 @@
             const rect = btn.getBoundingClientRect();
             const vw = window.innerWidth; const vh = window.innerHeight; const pad = 6;
             const width = Math.max(pop.offsetWidth, 220);
-            const height = Math.max(pop.offsetHeight, 60);
+            const height = Math.min(Math.max(pop.offsetHeight, 60), vh - pad * 2);
             let left = rect.left;
             let top = rect.bottom + 8;
             if (left + width > vw - pad) left = Math.max(pad, vw - width - pad);
             if (top + height > vh - pad) top = Math.max(pad, rect.top - height - pad);
+            if (top + height > vh - pad) top = pad;
             pop.style.left = left + 'px';
             pop.style.top = top + 'px';
             const remove = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', remove, true); } };
@@ -2585,52 +2679,324 @@
             updateExportOptionsUI();
         }
 
-        function setExportFormat(fmt, el) {
-            state.exportFormat = fmt === 'csv' ? 'csv' : 'json';
+        function setExportFormat(fmt) {
+            state.exportFormat = ['json', 'csv', 'xlsx', 'source_csv', 'source_xlsx', 'target_csv', 'target_xlsx'].includes(fmt) ? fmt : 'json';
             updateExportOptionsUI();
         }
 
         function updateExportOptionsUI() {
             const jsonBtn = document.getElementById('opt-json');
             const csvBtn = document.getElementById('opt-csv');
+            const xlsxBtn = document.getElementById('opt-xlsx');
+            const sourceCsvBtn = document.getElementById('opt-source-csv');
+            const sourceXlsxBtn = document.getElementById('opt-source-xlsx');
+            const targetCsvBtn = document.getElementById('opt-target-csv');
+            const targetXlsxBtn = document.getElementById('opt-target-xlsx');
             const confirmBtn = document.getElementById('export-confirm');
             const cancelBtn = document.getElementById('export-cancel');
-            if (!jsonBtn || !csvBtn || !confirmBtn || !cancelBtn) return;
-            const jsonActive = state.exportFormat === 'json';
-            
-            // JSON按钮样式
-            if (jsonActive) {
-                jsonBtn.style.background = 'linear-gradient(135deg, #4F8EEA, #6AA5F5)';
-                jsonBtn.style.boxShadow = '0 2px 4px rgba(79, 142, 234, 0.3)';
-                jsonBtn.style.color = '#FFFFFF';
-            } else {
-                jsonBtn.style.background = '#8C9CB2';
-                jsonBtn.style.boxShadow = 'none';
-                jsonBtn.style.color = '#FFFFFF';
-            }
-            
-            // CSV按钮样式
-            if (!jsonActive) {
-                csvBtn.style.background = 'linear-gradient(135deg, #4F8EEA, #6AA5F5)';
-                csvBtn.style.boxShadow = '0 2px 4px rgba(79, 142, 234, 0.3)';
-                csvBtn.style.color = '#FFFFFF';
-            } else {
-                csvBtn.style.background = '#8C9CB2';
-                csvBtn.style.boxShadow = 'none';
-                csvBtn.style.color = '#FFFFFF';
-            }
-            jsonBtn.style.textAlign = 'center';
-            csvBtn.style.textAlign = 'center';
-            jsonBtn.style.padding = '8px 16px';
-            csvBtn.style.padding = '8px 16px';
-            jsonBtn.style.borderRadius = '10px';
-            csvBtn.style.borderRadius = '10px';
-            jsonBtn.style.fontWeight = '600';
-            csvBtn.style.fontWeight = '600';
-            jsonBtn.style.minWidth = '80px';
-            csvBtn.style.minWidth = '80px';
-            [jsonBtn, csvBtn, confirmBtn, cancelBtn].forEach(b => { b.disabled = state.exportLoading; });
+            if (!jsonBtn || !csvBtn || !xlsxBtn || !sourceCsvBtn || !sourceXlsxBtn || !targetCsvBtn || !targetXlsxBtn || !confirmBtn || !cancelBtn) return;
+            const activeFormat = state.exportFormat || 'json';
+            const buttons = [
+                { el: jsonBtn, active: activeFormat === 'json' },
+                { el: csvBtn, active: activeFormat === 'csv' },
+                { el: xlsxBtn, active: activeFormat === 'xlsx' },
+                { el: sourceCsvBtn, active: activeFormat === 'source_csv' },
+                { el: sourceXlsxBtn, active: activeFormat === 'source_xlsx' },
+                { el: targetCsvBtn, active: activeFormat === 'target_csv' },
+                { el: targetXlsxBtn, active: activeFormat === 'target_xlsx' }
+            ];
+
+            buttons.forEach(({ el, active }) => {
+                el.style.background = active ? 'linear-gradient(135deg, #4F8EEA, #6AA5F5)' : '#8C9CB2';
+                el.style.boxShadow = active ? '0 2px 4px rgba(79, 142, 234, 0.3)' : 'none';
+                el.style.color = '#FFFFFF';
+                el.style.textAlign = 'center';
+                el.style.padding = '8px 16px';
+                el.style.borderRadius = '10px';
+                el.style.fontWeight = '600';
+                el.style.minWidth = (el.id.includes('source') || el.id.includes('target')) ? '100px' : '88px';
+                el.disabled = state.exportLoading;
+            });
+
+            [confirmBtn, cancelBtn].forEach(b => { b.disabled = state.exportLoading; });
             confirmBtn.textContent = state.exportLoading ? '导出中...' : '确定';
+            renderExportPreview();
+        }
+
+        function renderExportPreview() {
+            const hintEl = document.getElementById('export-preview-hint');
+            const bodyEl = document.getElementById('export-preview-body');
+            if (!hintEl || !bodyEl) return;
+            const fmt = state.exportFormat || 'json';
+            const meta = buildExportPreviewMeta(fmt);
+            hintEl.innerHTML = `<strong>${escapeHtml(meta.title)}</strong> · ${escapeHtml(meta.summary)}`;
+            if (fmt === 'json') {
+                bodyEl.innerHTML = buildJsonPreviewHtml(buildExportJsonPreviewPayload());
+            } else {
+                const rows = buildExportPreviewRows(fmt);
+                bodyEl.innerHTML = buildStructuredPreviewHtml(meta.columns, rows, meta.descriptions);
+            }
+        }
+
+        function buildExportPreviewMeta(format) {
+            const rawTitle = format === 'xlsx' ? '原始关系导出 / Excel' : '原始关系导出 / CSV';
+            const sourceTitle = format === 'source_xlsx' ? 'A 主视角导出 / Excel' : 'A 主视角导出 / CSV';
+            const targetTitle = format === 'target_xlsx' ? 'B 主视角导出 / Excel' : 'B 主视角导出 / CSV';
+            const previewMap = {
+                json: {
+                    title: '原始关系导出 / JSON',
+                    summary: '导出完整映射对象和元数据，适合备份与二次导入。',
+                    columns: [],
+                    descriptions: []
+                },
+                csv: {
+                    title: rawTitle,
+                    summary: '每一行代表一条 A-B 关系，适合逐条核对映射。', 
+                    columns: [
+                        { key: 'sourceId', label: 'sourceId' },
+                        { key: 'sourceName', label: 'sourceName' },
+                        { key: 'sourceLevel', label: 'sourceLevel' },
+                        { key: 'targetId', label: 'targetId' },
+                        { key: 'targetName', label: 'targetName' },
+                        { key: 'targetLevel', label: 'targetLevel' }
+                    ],
+                    descriptions: [
+                        { label: 'sourceId', text: '平台 A 节点 ID。' },
+                        { label: 'sourceName', text: '平台 A 节点名称。' },
+                        { label: 'sourceLevel', text: '平台 A 节点层级。' },
+                        { label: 'targetId', text: '平台 B 节点 ID。' },
+                        { label: 'targetName', text: '平台 B 节点名称。' },
+                        { label: 'targetLevel', text: '平台 B 节点层级。' }
+                    ]
+                },
+                xlsx: {
+                    title: rawTitle,
+                    summary: '每一行代表一条 A-B 关系，适合逐条核对映射。',
+                    columns: [
+                        { key: 'sourceId', label: 'sourceId' },
+                        { key: 'sourceName', label: 'sourceName' },
+                        { key: 'sourceLevel', label: 'sourceLevel' },
+                        { key: 'targetId', label: 'targetId' },
+                        { key: 'targetName', label: 'targetName' },
+                        { key: 'targetLevel', label: 'targetLevel' }
+                    ],
+                    descriptions: [
+                        { label: 'sourceId', text: '平台 A 节点 ID。' },
+                        { label: 'sourceName', text: '平台 A 节点名称。' },
+                        { label: 'sourceLevel', text: '平台 A 节点层级。' },
+                        { label: 'targetId', text: '平台 B 节点 ID。' },
+                        { label: 'targetName', text: '平台 B 节点名称。' },
+                        { label: 'targetLevel', text: '平台 B 节点层级。' }
+                    ]
+                },
+                source_csv: {
+                    title: sourceTitle,
+                    summary: '每个 A 节点仅一行，多个 B 节点信息使用英文逗号连接。',
+                    columns: [
+                        { key: 'sourceId', label: 'sourceId' },
+                        { key: 'sourceName', label: 'sourceName' },
+                        { key: 'sourceLevel', label: 'sourceLevel' },
+                        { key: 'targetIds', label: 'targetIds' },
+                        { key: 'targetNames', label: 'targetNames' },
+                        { key: 'targetDisplay', label: 'targetDisplay' }
+                    ],
+                    descriptions: [
+                        { label: 'sourceId', text: '平台 A 节点 ID。' },
+                        { label: 'sourceName', text: '平台 A 节点名称。' },
+                        { label: 'sourceLevel', text: '平台 A 节点层级。' },
+                        { label: 'targetIds', text: '该 A 节点绑定的所有 B 节点 ID，使用英文逗号分隔。' },
+                        { label: 'targetNames', text: '该 A 节点绑定的所有 B 节点名称，使用英文逗号分隔。' },
+                        { label: 'targetDisplay', text: '按 名称(ID) 聚合的 B 节点展示字段。' }
+                    ]
+                },
+                source_xlsx: {
+                    title: sourceTitle,
+                    summary: '每个 A 节点仅一行，多个 B 节点信息使用英文逗号连接。',
+                    columns: [
+                        { key: 'sourceId', label: 'sourceId' },
+                        { key: 'sourceName', label: 'sourceName' },
+                        { key: 'sourceLevel', label: 'sourceLevel' },
+                        { key: 'targetIds', label: 'targetIds' },
+                        { key: 'targetNames', label: 'targetNames' },
+                        { key: 'targetDisplay', label: 'targetDisplay' }
+                    ],
+                    descriptions: [
+                        { label: 'sourceId', text: '平台 A 节点 ID。' },
+                        { label: 'sourceName', text: '平台 A 节点名称。' },
+                        { label: 'sourceLevel', text: '平台 A 节点层级。' },
+                        { label: 'targetIds', text: '该 A 节点绑定的所有 B 节点 ID，使用英文逗号分隔。' },
+                        { label: 'targetNames', text: '该 A 节点绑定的所有 B 节点名称，使用英文逗号分隔。' },
+                        { label: 'targetDisplay', text: '按 名称(ID) 聚合的 B 节点展示字段。' }
+                    ]
+                },
+                target_csv: {
+                    title: targetTitle,
+                    summary: '每个 B 节点仅一行，多个 A 节点信息使用英文逗号连接。',
+                    columns: [
+                        { key: 'targetId', label: 'targetId' },
+                        { key: 'targetName', label: 'targetName' },
+                        { key: 'targetLevel', label: 'targetLevel' },
+                        { key: 'sourceIds', label: 'sourceIds' },
+                        { key: 'sourceNames', label: 'sourceNames' },
+                        { key: 'sourceDisplay', label: 'sourceDisplay' }
+                    ],
+                    descriptions: [
+                        { label: 'targetId', text: '平台 B 节点 ID。' },
+                        { label: 'targetName', text: '平台 B 节点名称。' },
+                        { label: 'targetLevel', text: '平台 B 节点层级。' },
+                        { label: 'sourceIds', text: '该 B 节点绑定的所有 A 节点 ID，使用英文逗号分隔。' },
+                        { label: 'sourceNames', text: '该 B 节点绑定的所有 A 节点名称，使用英文逗号分隔。' },
+                        { label: 'sourceDisplay', text: '按 名称(ID) 聚合的 A 节点展示字段。' }
+                    ]
+                },
+                target_xlsx: {
+                    title: targetTitle,
+                    summary: '每个 B 节点仅一行，多个 A 节点信息使用英文逗号连接。',
+                    columns: [
+                        { key: 'targetId', label: 'targetId' },
+                        { key: 'targetName', label: 'targetName' },
+                        { key: 'targetLevel', label: 'targetLevel' },
+                        { key: 'sourceIds', label: 'sourceIds' },
+                        { key: 'sourceNames', label: 'sourceNames' },
+                        { key: 'sourceDisplay', label: 'sourceDisplay' }
+                    ],
+                    descriptions: [
+                        { label: 'targetId', text: '平台 B 节点 ID。' },
+                        { label: 'targetName', text: '平台 B 节点名称。' },
+                        { label: 'targetLevel', text: '平台 B 节点层级。' },
+                        { label: 'sourceIds', text: '该 B 节点绑定的所有 A 节点 ID，使用英文逗号分隔。' },
+                        { label: 'sourceNames', text: '该 B 节点绑定的所有 A 节点名称，使用英文逗号分隔。' },
+                        { label: 'sourceDisplay', text: '按 名称(ID) 聚合的 A 节点展示字段。' }
+                    ]
+                }
+            };
+            return previewMap[format] || previewMap.json;
+        }
+
+        function buildExportPreviewRows(format) {
+            const rows = getExportRowsForFormat(format);
+            return rows.length > 0 ? rows.slice(0, 3) : getFallbackPreviewRows(format);
+        }
+
+        function buildExportJsonPreviewPayload() {
+            const mappings = Array.isArray(state.mappings) ? state.mappings : [];
+            const previewMappings = mappings.length > 0
+                ? mappings.slice(0, 2).map(mapping => ({
+                    sourceId: mapping.sourceId,
+                    sourceName: mapping.sourceName,
+                    targetIds: Array.isArray(mapping.targetIds) ? mapping.targetIds : [],
+                    targetNames: Array.isArray(mapping.targetNames) ? mapping.targetNames : []
+                }))
+                : [
+                    {
+                        sourceId: 'A-1',
+                        sourceName: '代数',
+                        targetIds: ['B-1', 'B-2'],
+                        targetNames: ['方程', '函数']
+                    }
+                ];
+            return {
+                exportTime: new Date().toISOString(),
+                mappingCount: mappings.length,
+                platformNameA: state.ui.platformNameA || '平台A',
+                platformNameB: state.ui.platformNameB || '平台B',
+                mappings: previewMappings
+            };
+        }
+
+        function getExportRowsForFormat(format) {
+            if (format === 'csv' || format === 'xlsx') return buildMappingExportRows();
+            if (format === 'source_csv' || format === 'source_xlsx') return buildSourceCentricExportRows();
+            if (format === 'target_csv' || format === 'target_xlsx') return buildTargetCentricExportRows();
+            return [];
+        }
+
+        function getFallbackPreviewRows(format) {
+            const fallbackMap = {
+                csv: [
+                    { sourceId: 'A-1', sourceName: '代数', sourceLevel: 2, targetId: 'B-1', targetName: '方程', targetLevel: 3 },
+                    { sourceId: 'A-1', sourceName: '代数', sourceLevel: 2, targetId: 'B-2', targetName: '函数', targetLevel: 3 },
+                    { sourceId: 'A-2', sourceName: '几何', sourceLevel: 2, targetId: 'B-3', targetName: '平面几何', targetLevel: 3 }
+                ],
+                xlsx: [
+                    { sourceId: 'A-1', sourceName: '代数', sourceLevel: 2, targetId: 'B-1', targetName: '方程', targetLevel: 3 },
+                    { sourceId: 'A-1', sourceName: '代数', sourceLevel: 2, targetId: 'B-2', targetName: '函数', targetLevel: 3 },
+                    { sourceId: 'A-2', sourceName: '几何', sourceLevel: 2, targetId: 'B-3', targetName: '平面几何', targetLevel: 3 }
+                ],
+                source_csv: [
+                    { sourceId: 'A-1', sourceName: '代数', sourceLevel: 2, targetIds: 'B-1,B-2', targetNames: '方程,函数', targetDisplay: '方程(B-1),函数(B-2)' },
+                    { sourceId: 'A-2', sourceName: '几何', sourceLevel: 2, targetIds: 'B-3', targetNames: '平面几何', targetDisplay: '平面几何(B-3)' }
+                ],
+                source_xlsx: [
+                    { sourceId: 'A-1', sourceName: '代数', sourceLevel: 2, targetIds: 'B-1,B-2', targetNames: '方程,函数', targetDisplay: '方程(B-1),函数(B-2)' },
+                    { sourceId: 'A-2', sourceName: '几何', sourceLevel: 2, targetIds: 'B-3', targetNames: '平面几何', targetDisplay: '平面几何(B-3)' }
+                ],
+                target_csv: [
+                    { targetId: 'B-1', targetName: '方程', targetLevel: 3, sourceIds: 'A-1,A-2', sourceNames: '代数,几何', sourceDisplay: '代数(A-1),几何(A-2)' },
+                    { targetId: 'B-2', targetName: '函数', targetLevel: 3, sourceIds: 'A-1', sourceNames: '代数', sourceDisplay: '代数(A-1)' }
+                ],
+                target_xlsx: [
+                    { targetId: 'B-1', targetName: '方程', targetLevel: 3, sourceIds: 'A-1,A-2', sourceNames: '代数,几何', sourceDisplay: '代数(A-1),几何(A-2)' },
+                    { targetId: 'B-2', targetName: '函数', targetLevel: 3, sourceIds: 'A-1', sourceNames: '代数', sourceDisplay: '代数(A-1)' }
+                ]
+            };
+            return fallbackMap[format] || fallbackMap.json;
+        }
+
+        function buildJsonPreviewHtml(payload) {
+            return `
+                <div id="export-preview-scroll" style="height:100%; overflow:auto;">
+                    <pre style="margin:0; padding:12px; border-radius:10px; background:${(state.ui && state.ui.theme) === 'light' ? '#E2E8F0' : '#111827'}; color:${(state.ui && state.ui.theme) === 'light' ? '#0F172A' : '#E2E8F0'}; font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word; overflow:auto;"><code>${escapeHtml(JSON.stringify(payload, null, 2))}</code></pre>
+                </div>
+            `;
+        }
+
+        function buildStructuredPreviewHtml(columns, rows, descriptions) {
+            return `
+                <div id="export-preview-scroll" style="height:100%; overflow:auto; padding-right:2px;">
+                    <section id="preview-table-section">
+                        <div style="font-size:12px; font-weight:600; color:${(state.ui && state.ui.theme) === 'light' ? '#334155' : '#E2E8F0'}; margin-bottom:8px;">示例数据</div>
+                        ${buildPreviewTableHtml(columns, rows)}
+                    </section>
+                    <div id="preview-divider" style="height:1px; background:${(state.ui && state.ui.theme) === 'light' ? '#CBD5E1' : 'rgba(148, 163, 184, 0.32)'}; margin:14px 0;"></div>
+                    <section id="preview-desc-section">
+                        <div style="font-size:12px; font-weight:600; color:${(state.ui && state.ui.theme) === 'light' ? '#334155' : '#E2E8F0'}; margin-bottom:8px;">字段说明</div>
+                        ${buildPreviewDescriptionsHtml(descriptions)}
+                    </section>
+                </div>
+            `;
+        }
+
+        function buildPreviewTableHtml(columns, rows) {
+            const headHtml = columns.map(column => `<th style="padding:8px 10px; text-align:left; white-space:nowrap; border-bottom:1px solid rgba(148, 163, 184, 0.25);">${escapeHtml(column.label)}</th>`).join('');
+            const bodyHtml = rows.map(row => `
+                <tr>
+                    ${columns.map(column => `<td style="padding:8px 10px; vertical-align:top; border-bottom:1px solid rgba(148, 163, 184, 0.16);">${escapeHtml(row[column.key])}</td>`).join('')}
+                </tr>
+            `).join('');
+            return `
+                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                    <thead><tr>${headHtml}</tr></thead>
+                    <tbody>${bodyHtml}</tbody>
+                </table>
+            `;
+        }
+
+        function buildPreviewDescriptionsHtml(descriptions) {
+            return descriptions.map(item => `
+                <div style="font-size:12px; color:${(state.ui && state.ui.theme) === 'light' ? '#475569' : '#CBD5E1'}; padding:8px 0; border-top:1px solid ${(state.ui && state.ui.theme) === 'light' ? 'rgba(203, 213, 225, 0.7)' : 'rgba(148, 163, 184, 0.18)'};">
+                    <strong>${escapeHtml(item.label)}</strong>：${escapeHtml(item.text)}
+                </div>
+            `).join('');
+        }
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         
@@ -2642,7 +3008,13 @@
             if (!state.mappings || state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
             state.exportLoading = true; updateExportOptionsUI();
             try {
-                if (fmt === 'csv') exportMappingsCSV(); else exportMappingsJSON();
+                if (fmt === 'csv') exportMappingsCSV();
+                else if (fmt === 'xlsx') exportMappingsExcel();
+                else if (fmt === 'source_csv') exportSourceCentricCSV();
+                else if (fmt === 'source_xlsx') exportSourceCentricExcel();
+                else if (fmt === 'target_csv') exportTargetCentricCSV();
+                else if (fmt === 'target_xlsx') exportTargetCentricExcel();
+                else exportMappingsJSON();
             } finally {
                 state.exportLoading = false; updateExportOptionsUI();
                 if (pop) pop.remove();
@@ -2653,24 +3025,190 @@
             exportMappings();
         }
 
-        function exportMappingsCSV() {
-            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+        function findNodeInTree(tree, id) {
+            if (!tree || !id) return null;
+            const stack = [tree];
+            while (stack.length) {
+                const node = stack.pop();
+                if (!node) continue;
+                if (node.id === id) return node;
+                if (Array.isArray(node.children)) {
+                    for (const child of node.children) stack.push(child);
+                }
+            }
+            return null;
+        }
+
+        function getNodeLevelById(tree, id) {
+            const node = findNodeInTree(tree, id);
+            return node && node.level != null ? node.level : '';
+        }
+
+        function buildMappingExportRows() {
             const rows = [];
-            rows.push(['sourceId','sourceName','targetId','targetName'].join(','));
             state.mappings.forEach(m => {
+                const sourceLevel = getNodeLevelById(state.platformA, m && m.sourceId);
                 (m.targetIds || []).forEach((tid, idx) => {
                     const tname = (m.targetNames || [])[idx] || '';
-                    rows.push([escapeCSV(m.sourceId), escapeCSV(m.sourceName), escapeCSV(tid), escapeCSV(tname)].join(','));
+                    rows.push({
+                        sourceId: m.sourceId,
+                        sourceName: m.sourceName,
+                        sourceLevel,
+                        targetId: tid,
+                        targetName: tname,
+                        targetLevel: getNodeLevelById(state.platformB, tid)
+                    });
                 });
             });
-            const csv = rows.join('\n');
+            return rows;
+        }
+
+        function buildSourceCentricExportRows() {
+            const rows = [];
+            const rowMap = new Map();
+            state.mappings.forEach(m => {
+                if (!m || !m.sourceId) return;
+                let row = rowMap.get(m.sourceId);
+                if (!row) {
+                    row = {
+                        sourceId: m.sourceId,
+                        sourceName: m.sourceName || '',
+                        sourceLevel: getNodeLevelById(state.platformA, m.sourceId),
+                        targetIds: [],
+                        targetNames: [],
+                        targetDisplay: []
+                    };
+                    rowMap.set(m.sourceId, row);
+                    rows.push(row);
+                }
+                if (!row.sourceName && m.sourceName) row.sourceName = m.sourceName;
+                (m.targetIds || []).forEach((tid, idx) => {
+                    if (tid == null || tid === '') return;
+                    const targetId = String(tid);
+                    if (row.targetIds.includes(targetId)) return;
+                    const targetName = String((m.targetNames || [])[idx] || '');
+                    row.targetIds.push(targetId);
+                    row.targetNames.push(targetName);
+                    row.targetDisplay.push(targetName ? `${targetName}(${targetId})` : `(${targetId})`);
+                });
+            });
+            return rows.map(row => ({
+                sourceId: row.sourceId,
+                sourceName: row.sourceName,
+                sourceLevel: row.sourceLevel,
+                targetIds: row.targetIds.join(','),
+                targetNames: row.targetNames.join(','),
+                targetDisplay: row.targetDisplay.join(',')
+            }));
+        }
+
+        function buildTargetCentricExportRows() {
+            const rows = [];
+            const rowMap = new Map();
+            state.mappings.forEach(m => {
+                if (!m) return;
+                (m.targetIds || []).forEach((tid, idx) => {
+                    if (tid == null || tid === '') return;
+                    const targetId = String(tid);
+                    const targetName = String((m.targetNames || [])[idx] || '');
+                    let row = rowMap.get(targetId);
+                    if (!row) {
+                        row = {
+                            targetId,
+                            targetName,
+                            targetLevel: getNodeLevelById(state.platformB, targetId),
+                            sourceIds: [],
+                            sourceNames: [],
+                            sourceDisplay: []
+                        };
+                        rowMap.set(targetId, row);
+                        rows.push(row);
+                    }
+                    if (!row.targetName && targetName) row.targetName = targetName;
+                    const sourceId = String(m.sourceId || '');
+                    if (!sourceId || row.sourceIds.includes(sourceId)) return;
+                    const sourceName = String(m.sourceName || '');
+                    row.sourceIds.push(sourceId);
+                    row.sourceNames.push(sourceName);
+                    row.sourceDisplay.push(sourceName ? `${sourceName}(${sourceId})` : `(${sourceId})`);
+                });
+            });
+            return rows.map(row => ({
+                targetId: row.targetId,
+                targetName: row.targetName,
+                targetLevel: row.targetLevel,
+                sourceIds: row.sourceIds.join(','),
+                sourceNames: row.sourceNames.join(','),
+                sourceDisplay: row.sourceDisplay.join(',')
+            }));
+        }
+
+        function exportMappingsCSV() {
+            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            const exportRows = buildMappingExportRows();
+            downloadCSVRows(['sourceId', 'sourceName', 'sourceLevel', 'targetId', 'targetName', 'targetLevel'], exportRows, `${state.ui.platformNameA}_${state.ui.platformNameB}关系映射 ${formatDateYMD(new Date())}.csv`);
+        }
+
+        function exportMappingsExcel() {
+            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            if (typeof XLSX === 'undefined') {
+                throw new Error('Excel导出库加载失败，请刷新页面重试');
+            }
+            const rows = buildMappingExportRows();
+            exportRowsToExcel(['sourceId', 'sourceName', 'sourceLevel', 'targetId', 'targetName', 'targetLevel'], rows, 'Mappings', `${state.ui.platformNameA}_${state.ui.platformNameB}关系映射 ${formatDateYMD(new Date())}.xlsx`);
+        }
+
+        function exportSourceCentricCSV() {
+            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            const exportRows = buildSourceCentricExportRows();
+            downloadCSVRows(['sourceId', 'sourceName', 'sourceLevel', 'targetIds', 'targetNames', 'targetDisplay'], exportRows, `${state.ui.platformNameA}_${state.ui.platformNameB}A主视角关系映射 ${formatDateYMD(new Date())}.csv`);
+        }
+
+        function exportSourceCentricExcel() {
+            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            if (typeof XLSX === 'undefined') {
+                throw new Error('Excel导出库加载失败，请刷新页面重试');
+            }
+            const rows = buildSourceCentricExportRows();
+            exportRowsToExcel(['sourceId', 'sourceName', 'sourceLevel', 'targetIds', 'targetNames', 'targetDisplay'], rows, 'SourceMappings', `${state.ui.platformNameA}_${state.ui.platformNameB}A主视角关系映射 ${formatDateYMD(new Date())}.xlsx`);
+        }
+
+        function exportTargetCentricCSV() {
+            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            const exportRows = buildTargetCentricExportRows();
+            downloadCSVRows(['targetId', 'targetName', 'targetLevel', 'sourceIds', 'sourceNames', 'sourceDisplay'], exportRows, `${state.ui.platformNameA}_${state.ui.platformNameB}B主视角关系映射 ${formatDateYMD(new Date())}.csv`);
+        }
+
+        function exportTargetCentricExcel() {
+            if (state.mappings.length === 0) { alert('没有映射关系可导出！'); return; }
+            if (typeof XLSX === 'undefined') {
+                throw new Error('Excel导出库加载失败，请刷新页面重试');
+            }
+            const rows = buildTargetCentricExportRows();
+            exportRowsToExcel(['targetId', 'targetName', 'targetLevel', 'sourceIds', 'sourceNames', 'sourceDisplay'], rows, 'TargetMappings', `${state.ui.platformNameA}_${state.ui.platformNameB}B主视角关系映射 ${formatDateYMD(new Date())}.xlsx`);
+        }
+
+        function downloadCSVRows(headers, rows, fileName) {
+            const lines = [];
+            lines.push(headers.join(','));
+            rows.forEach(row => {
+                lines.push(headers.map(key => escapeCSV(row[key])).join(','));
+            });
+            const csv = lines.join('\n');
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${state.ui.platformNameA}_${state.ui.platformNameB}关系映射 ${formatDateYMD(new Date())}.csv`;
+            a.download = fileName;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        function exportRowsToExcel(headers, rows, sheetName, fileName) {
+            const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+            XLSX.writeFile(workbook, fileName);
         }
 
         function escapeCSV(v) {
@@ -3315,7 +3853,7 @@
 
         function applySmartMappings() {
             const checkboxes = document.querySelectorAll('.smart-selection:checked');
-            let appliedCount = 0;
+            const results = [];
             
             checkboxes.forEach(checkbox => {
                 const sourceId = checkbox.dataset.source;
@@ -3323,41 +3861,14 @@
                 
                 const source = findNodeById(sourceId, 'A');
                 const target = findNodeById(targetId, 'B');
-                
-                if (source && target) {
-                    // 检查是否已存在
-                    const existing = state.mappings.find(m => 
-                        m.sourceId === sourceId && m.targetIds.includes(targetId)
-                    );
-                    
-                    if (!existing) {
-                        state.mappings.push({
-                            id: 'map-' + Date.now() + '-' + Math.random(),
-                            sourceId: sourceId,
-                            sourceName: source.name,
-                            targetIds: [targetId],
-                            targetNames: [target.name],
-                            createTime: Date.now(),
-                            updateTime: Date.now(),
-                            status: 'active',
-                            creator: 'smart-mapping',
-                            updateCount: 0
-                        });
-                        appliedCount++;
-                    }
-                }
+                results.push((source && target) ? attemptBind(source, target, { silent: true }) : { success: false, reason: 'invalid_node' });
             });
+            const appliedCount = results.filter(result => result && result.success).length;
             
             if (appliedCount > 0) {
-                saveToLocalStorage();
-                renderTrees();
-                renderMappings();
-                updateStats();
                 addToHistory('智能批量映射', `应用了${appliedCount}个映射`, '');
-                showToast(`成功应用 ${appliedCount} 个智能映射！`, 'success');
-            } else {
-                showToast('没有选中的映射需要应用', 'error');
             }
+            showToast(buildBindSummaryToast(results), appliedCount > 0 ? 'success' : 'error');
             
             closeSmartMappingModal();
         }
