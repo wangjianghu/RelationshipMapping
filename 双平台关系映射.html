@@ -227,14 +227,14 @@
             <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('fileInput').click()">
                 <div class="upload-icon"></div>
                 <div class="upload-text" id="uploadText">点击或拖拽文件到此处上传</div>
-                <div class="upload-hint" id="uploadHint">支持 JSON 和 CSV 格式，文件大小不超过 10MB</div>
+                <div class="upload-hint" id="uploadHint">支持 JSON、CSV 和 Excel(.xlsx/.xls) 格式，文件大小不超过 10MB</div>
                 <a class="template-link" onclick="downloadCSVTemplate()" style="margin-top:6px; display:block; text-align:center;">下载CSV模板</a>
                 <div id="uploadFilename" style="margin-top:6px; font-size:12px; color:#5eead4; text-align:center;"></div>
                 <div id="clearFileBtn" style="margin-top:6px; display:none; justify-content:center; gap:8px;">
                     <button class="btn-small btn-secondary" onclick="clearSelectedFile(event)">清除文件</button>
                 </div>
             </div>
-            <input type="file" id="fileInput" class="file-input" accept=".json,.csv">
+            <input type="file" id="fileInput" class="file-input" accept=".json,.csv,.xlsx,.xls">
 
             <div id="editorPreviewGrid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 15px; align-items:start; position: relative;">
             <div id="jsonEditorSection" style="position: relative; padding-top: 32px;">
@@ -355,6 +355,7 @@
         </div>
     </div>
 
+    <script src="vendor/xlsx.full.min.js"></script>
     <script src="js/script.js"></script>
 </body>
 </html>

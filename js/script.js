@@ -202,8 +202,15 @@
                         ce.value = csvData;
                         const parsedData = parseCSV(csvData);
                         validateAndPreview(parsedData);
+                    } else if (fileType.endsWith('.xlsx') || fileType.endsWith('.xls')) {
+                        state.uploadType = 'excel';
+                        switchFormat('upload');
+                        const parsedData = parseExcelHierarchy(e.target.result);
+                        const je = document.getElementById('jsonEditor');
+                        je.value = JSON.stringify(parsedData, null, 2);
+                        validateAndPreview(parsedData);
                     } else {
-                        showValidation('❌ 不支持的文件格式，请选择 .json 或 .csv 文件', 'error');
+                        showValidation('❌ 不支持的文件格式，请选择 .json、.csv、.xlsx 或 .xls 文件', 'error');
                         state.importData = null;
                     }
                 } catch (error) {
@@ -212,7 +219,11 @@
                 }
             };
 
-            reader.readAsText(file, 'UTF-8');
+            if (fileType.endsWith('.xlsx') || fileType.endsWith('.xls')) {
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.readAsText(file, 'UTF-8');
+            }
         }
         function clearSelectedFile(e) {
             if (e) e.stopPropagation();
@@ -271,6 +282,95 @@
                 nodes.push(node);
             }
             return { nodes };
+        }
+
+        function parseHierarchyHeaderIndex(value) {
+            const text = String(value || '').trim().replace(/\s+/g, '');
+            const chineseLevels = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+            const numericMatch = text.match(/^(?:层级(\d+)|第(\d+)级|第(\d+)层级)$/);
+            if (numericMatch) {
+                return Number(numericMatch[1] || numericMatch[2] || numericMatch[3]);
+            }
+            const chineseMatch = text.match(/^([一二三四五六七八九十])级$/);
+            if (chineseMatch) {
+                return chineseLevels[chineseMatch[1]] || null;
+            }
+            return null;
+        }
+
+        function isHierarchyHeader(value, index) {
+            return parseHierarchyHeaderIndex(value) === index + 1;
+        }
+
+        function getHierarchyColumnCount(headerRow) {
+            let count = 0;
+            while (count < headerRow.length && isHierarchyHeader(headerRow[count], count)) {
+                count++;
+            }
+            return count;
+        }
+
+        function convertHierarchyRowsToNodes(rows) {
+            if (!Array.isArray(rows) || rows.length < 2) {
+                throw new Error('Excel缺少有效数据');
+            }
+
+            const header = (rows[0] || []).map(cell => String(cell || '').trim());
+            const levelColumnCount = getHierarchyColumnCount(header);
+            if (!levelColumnCount) {
+                throw new Error('当前Excel不是支持的层级路径型格式');
+            }
+
+            const nodeMap = new Map();
+            let autoId = 1;
+
+            rows.slice(1).forEach(row => {
+                const values = Array.isArray(row) ? row : [];
+                let parentKey = null;
+
+                for (let index = 0; index < levelColumnCount; index++) {
+                    const name = String(values[index] || '').trim();
+                    if (!name) continue;
+
+                    const currentKey = parentKey ? `${parentKey}\u001f${name}` : name;
+                    if (!nodeMap.has(currentKey)) {
+                        nodeMap.set(currentKey, {
+                            id: `excel-${autoId++}`,
+                            name,
+                            parentId: parentKey ? nodeMap.get(parentKey).id : null,
+                            level: index + 1
+                        });
+                    }
+                    parentKey = currentKey;
+                }
+            });
+
+            const nodes = Array.from(nodeMap.values());
+            if (!nodes.length) {
+                throw new Error('Excel中没有可导入的层级数据');
+            }
+            return { nodes };
+        }
+
+        function parseExcelHierarchy(arrayBuffer) {
+            if (typeof XLSX === 'undefined') {
+                throw new Error('Excel解析库加载失败，请刷新页面重试');
+            }
+
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            if (!firstSheetName) {
+                throw new Error('Excel文件为空');
+            }
+
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {
+                header: 1,
+                raw: false,
+                defval: ''
+            });
+
+            return convertHierarchyRowsToNodes(rows);
         }
 
         function downloadCSVTemplate() {
@@ -348,6 +448,11 @@
                     csvSection.style.display = 'block';
                     csvEl.readOnly = true; csvEl.classList.add('readonly');
                     jsonEl.readOnly = false; jsonEl.classList.remove('readonly');
+                } else if (state.uploadType === 'excel') {
+                    jsonSection.style.display = 'block';
+                    csvSection.style.display = 'none';
+                    jsonEl.readOnly = true; jsonEl.classList.add('readonly');
+                    csvEl.readOnly = false; csvEl.classList.remove('readonly');
                 }
             } else {
                 jsonSection.style.display = format === 'json' ? 'block' : 'none';
